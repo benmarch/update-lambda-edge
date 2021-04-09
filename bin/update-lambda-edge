@@ -1,0 +1,126 @@
+#!/usr/bin/env node
+
+const path = require('path')
+const yargs = require('yargs/yargs')
+const { hideBin } = require('yargs/helpers')
+
+const { pushNewCodeBundle, deployLambda, publishLambda, activateLambdas } = require('../index')
+
+yargs(hideBin(process.argv))
+  .help()
+
+  .command('push', 'Pushes a ZIP file containing Lambda code to S3', yargs => {
+    yargs
+      .option('bucket', {
+        type: 'string',
+        demandOption: true,
+        description: 'The name of the S3 bucket to push the ZIP file to'
+      })
+      .option('key', {
+        type: 'string',
+        demandOption: true,
+        description: 'The file path to the ZIP file in the S3 bucket'
+      })
+      .option('file-path', {
+        type: 'string',
+        demandOption: true,
+        description: 'The relative file path to the ZIP file on local FS'
+      })
+      .option('function-name', {
+        type: 'string',
+        description: 'If auto-increment is true, this is required to determine the next Lambda version number'
+      })
+      .option('auto-increment', {
+        type: 'boolean',
+        description: 'If true, will append the file name with the next Lambda version',
+        default: false
+      })
+      .option('version', {
+        type: 'string',
+        description: 'Will append this version number to the file name (ignored if "auto-increment" is true)'
+      })
+      .option('pwd', {
+        type: 'string',
+        description: 'Set the present working directory',
+        default: process.cwd()
+      })
+  }, args => pushNewCodeBundle({
+    ...args,
+    filePath: path.resolve(args.pwd, args.filePath)
+  }))
+
+  .command('deploy', 'Updates the code of an existing Lambda function with a new ZIP file in S3', yargs => {
+    yargs
+      .option('bucket', {
+        type: 'string',
+        demandOption: true,
+        description: 'The name of the S3 bucket where the ZIP file lives'
+      })
+      .option('key', {
+        type: 'string',
+        demandOption: true,
+        description: 'The file path to the ZIP file in the S3 bucket'
+      })
+      .option('function-name', {
+        type: 'string',
+        demandOption: true,
+        description: 'The name of the Lambda function to update'
+      })
+      .option('use-next-version', {
+        type: 'boolean',
+        description: 'If true, look for a ZIP file with the next Lambda version appended to the name',
+        default: false
+      })
+      .option('version', {
+        type: 'string',
+        description: 'Will append this version number to the file name (ignored if "use-next-version" is true)'
+      })
+  }, args => deployLambda(args))
+
+  .command('publish', 'Publishes a new Lambda version', yargs => {
+    yargs
+      .option('function-name', {
+        type: 'string',
+        demandOption: true,
+        description: 'The name of the Lambda function to publish'
+      })
+  }, args => publishLambda(args))
+
+  .command('activate', 'Activates the latest versions of Lambda@Edge functions on specified CloudFront distribution', yargs => {
+    yargs
+      .option('distribution-id', {
+        alias: 'd',
+        type: 'string',
+        demandOption: true,
+        description: 'The CloudFront distribution ID'
+      })
+      .option('viewer-request', {
+        type: 'string',
+        description: 'The name of the function to be deployed at the Viewer Request event'
+      })
+      .option('origin-request', {
+        type: 'string',
+        description: 'The name of the function to be deployed at the Origin Request event'
+      })
+      .option('origin-response', {
+        type: 'string',
+        description: 'The name of the function to be deployed at the Origin Response event'
+      })
+      .option('viewer-response', {
+        type: 'string',
+        description: 'The name of the function to be deployed at the Viewer Response event'
+      })
+  }, args => activateLambdas(args))
+
+  .option('region', {
+    alias: 'r',
+    type: 'string',
+    description: 'The region that the base Lambdas are running',
+    default: 'us-east-1'
+  })
+  .option('dry-run', {
+    type: 'boolean',
+    description: 'If true, will only print out debug info; it will not update anything in AWS'
+  })
+
+  .argv

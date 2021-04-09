@@ -1,0 +1,35 @@
+{
+  "name": "update-lambda-edge",
+  "version": "0.1.0",
+  "description": "Scripts for updating CloudFront distributions with new Lambda@Edge function versions",
+  "main": "index.js",
+  "bin": "bin/update-lambda-edge",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benmarch/update-lambda-edge.git"
+  },
+  "keywords": [
+    "AWS",
+    "Lambda",
+    "Lambda@Edge",
+    "CloudFront",
+    "S3",
+    "Update"
+  ],
+  "author": "Ben March",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/benmarch/update-lambda-edge/issues"
+  },
+  "homepage": "https://github.com/benmarch/update-lambda-edge#readme",
+  "dependencies": {
+    "aws-sdk": "2.882.0",
+    "yargs": "16.2.0"
+  },
+  "devDependencies": {
+    "jest": "26.6.3"
+  }
+}
