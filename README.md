@@ -75,7 +75,7 @@ Options:
       --auto-increment  If true, will append the file name with the next Lambda
                         version                       [boolean] [default: false]
       --pwd             Set the present working directory
-              [string] [default: "/Users/ben.march/Projects/update-lambda-edge"]
+              [string] [default: <cwd>]
 ```
 
 ### deploy
