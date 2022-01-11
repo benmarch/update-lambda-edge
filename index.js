@@ -174,7 +174,7 @@ const publishLambda = async ({functionName, region, dryRun}) => {
     return
   }
 
-  await lambda.publishVersion().promise()
+  await lambda.publishVersion(config).promise()
 
   console.log('Successfully published new Lambda version.')
 }
