@@ -46,9 +46,9 @@ const createConfig = args => {
     const projectConfig = require(path.isAbsolute(config) ? config : path.resolve(pwd, config))
 
     commandConfig = {
-      dryRun,
+      dryRun: !!dryRun,
       cfDistributionID: distributionId || projectConfig.cfDistributionID,
-      autoIncrementVersion: lambdaVersion ? false : (typeof autoIncrement === 'boolean' ? autoIncrement : projectConfig.autoIncrementVersion),
+      autoIncrementVersion: lambdaVersion ? false : projectConfig.autoIncrementVersion,
       lambdaCodeS3Bucket: bucket || projectConfig.lambdaCodeS3Bucket,
       awsRegion: region || projectConfig.awsRegion,
       cfTriggers: projectConfig.cfTriggers
@@ -62,9 +62,9 @@ const createConfig = args => {
   } else {
     // otherwise, create a config object for a single trigger
     commandConfig = {
-      dryRun,
+      dryRun: !!dryRun,
       cfDistributionID: distributionId,
-      autoIncrementVersion: autoIncrement,
+      autoIncrementVersion: lambdaVersion ? false : !!autoIncrement,
       lambdaCodeS3Bucket: bucket,
       awsRegion: region,
       cfTriggers: [
@@ -83,7 +83,7 @@ const createConfig = args => {
   return commandConfig
 }
 
-yargs(hideBin(process.argv))
+const cli = yargs(hideBin(process.argv))
   .help()
 
   .command('push', 'Pushes a ZIP file containing Lambda code to S3', yargs => {
@@ -210,4 +210,7 @@ yargs(hideBin(process.argv))
     description: 'If true, will only print out debug info; it will not update anything in AWS'
   })
 
-  .argv
+// initialize CLI
+cli.argv
+
+module.exports = cli
