@@ -190,11 +190,14 @@ const pushNewCodeBundles = async (config) => {
       Body: fs.createReadStream(trigger.lambdaCodeFilePath)
     }
 
-    console.log('Pushing to S3 with the following config:', s3Config)
+    console.log('Pushing to S3 with the following config:', {
+      ...s3Config,
+      Body: `File: ${trigger.lambdaCodeFilePath}`
+    })
 
     if (config.dryRun) {
       console.log('[DRY RUN]: Not pushing code bundles to S3')
-      return
+      continue
     }
 
     await s3.upload(s3Config).promise()
@@ -240,7 +243,7 @@ const deployLambdas = async (config) => {
     console.log('Updating Lambda code with the following config', lambdaConfig)
     if (config.dryRun) {
       console.log('[DRY RUN]: Not updating Lambda function code')
-      return
+      continue
     }
 
     await lambda.updateFunctionCode(lambdaConfig).promise()
@@ -272,9 +275,10 @@ const publishLambdas = async (config) => {
     }
 
     console.log('Publishing new Lambda version with the following config:', lambdaConfig)
+
     if (config.dryRun) {
       console.log('[DRY RUN]: Not publishing new Lambda versions')
-      return
+      continue
     }
 
     await lambda.publishVersion(lambdaConfig).promise()
