@@ -1,7 +1,71 @@
 const fs = require('fs')
+const path = require('path')
 const AWS = require('aws-sdk')
 
-const getLatestLambdaVersion = async (functionName, region) => {
+/**
+ * Validates a configuration object
+ * @param {CommandConfig} config A command configuration object
+ * @param {string[]} requiredFields List of required config fields (excluding cfTriggers)
+ * @param {string[]} requiredTriggerFields List of required config fields for each trigger
+ * @returns {boolean}
+ */
+const validateConfig = (config, requiredFields = [], requiredTriggerFields = []) => {
+  const validFields = ['dryRun', 'awsRegion', 'cfDistributionID', 'autoIncrementVersion', 'lambdaCodeS3Bucket', 'lambdaCodeS3Bucket', 'cfTriggers']
+  const validTriggerFields = ['cfTriggerName', 'lambdaFunctionName', 'lambdaFunctionVersion', 'lambdaCodeS3Key', 'lambdaCodeFilePath']
+
+  // ensure all fields in the config are expected
+  for (let field of Object.keys(config)) {
+    if (!validFields.includes(field)) {
+      console.log(`[VALIDATION ERROR]: unknown field '${field}' found in config.`, config)
+      return false
+    }
+  }
+
+  // ensure all required fields are defined
+  for (let field of requiredFields) {
+    if (typeof config[field] === 'undefined') {
+      console.log(`[VALIDATION ERROR]: '${field}' is required for each trigger.`, config)
+      return false
+    }
+  }
+
+  // ensure that there is at least one trigger
+  if (!config.cfTriggers?.length) {
+    console.log(`[VALIDATION ERROR]: at least one trigger configuration is required.`, config)
+    return false
+  }
+
+  // validate each trigger configuration
+  for (let trigger of config.cfTriggers) {
+    // ensure all fields in the trigger confg are expected
+    for (let field of Object.keys(trigger)) {
+      if (!validTriggerFields.includes(field)) {
+        console.log(`[VALIDATION ERROR]: unknown field '${field}' found in trigger config.`, trigger)
+        return false
+      }
+    }
+
+    // ensure all required fields are defined
+    for (let field of requiredTriggerFields) {
+      if (typeof trigger[field] === 'undefined') {
+        console.log(`[VALIDATION ERROR]: '${field}' is required for each trigger.`, trigger)
+        return false
+      }
+    }
+  }
+
+  return true
+}
+
+/**
+ * Iterates through all the versions of a Lambda function to find the most recent sequential version
+ *
+ * @param {Lambda.FunctionName} functionName The fully qualified Lambda function name
+ * @param {AWS.Region} region The AWS region the Lambda is in
+ * @param {string} version The sequential version number to get (gets the latest if blank)
+ * @returns {Promise<Lambda.Version>}
+ */
+const getLambdaVersion = async (functionName, region, version= '') => {
   const lambda = new AWS.Lambda({
     apiVersion: '2015-03-31',
     region
@@ -19,13 +83,27 @@ const getLatestLambdaVersion = async (functionName, region) => {
     versions.push(...versionData.Versions)
   } while (nextMarker)
 
+  // if no versions have been published, return an empty version
   if (!versions.length) {
-    return ''
+    return {
+      Version: '0'
+    }
+  }
+
+  if (version) {
+    return versions.find(v => v.Version === version)
   }
 
   return versions.filter(version => version.Version !== '$LATEST').sort((a, b) => Number(b.Version) - Number(a.Version))[0]
 }
 
+/**
+ * Fetches the full configuration for a CloudFront distribution
+ *
+ * @param {CloudFront.DistributionId} distributionID The CloudFront distribution ID
+ * @param {AWS.Region} region The AWS region
+ * @returns {Promise<CloudFront.DistributionConfig>}
+ */
 const getCloudFrontDistributionConfig = async (distributionID, region) => {
   const cloudfront = new AWS.CloudFront({
     apiVersion: '2020-05-31',
@@ -37,6 +115,14 @@ const getCloudFrontDistributionConfig = async (distributionID, region) => {
   }).promise()
 }
 
+/**
+ * Modifies a CloudFront configuration with a new Lambda ARN for a specific trigger
+ *
+ * @param {CloudFront.DistributionConfig} distributionConfig The current CloudFront distribution config
+ * @param {Lambda.Arn} lambdaARN The ARN for the new Lambda to use as a trigger
+ * @param {CloudFront.EventType} triggerName The name of the trigger event ['viewer-request'|'origin-request'|'origin-response'|'viewer-response']
+ * @returns {*}
+ */
 const changeCloudFrontDistributionLambdaARN = (distributionConfig, lambdaARN, triggerName) => {
   try {
     const lambdaFunction = distributionConfig.DistributionConfig.DefaultCacheBehavior.LambdaFunctionAssociations.Items.find(item => item.EventType === triggerName)
@@ -49,6 +135,14 @@ const changeCloudFrontDistributionLambdaARN = (distributionConfig, lambdaARN, tr
   return distributionConfig
 }
 
+/**
+ * Updates a CloudFront distribution with the provided config
+ *
+ * @param {CloudFront.DistributionId} distributionID The CloudFront distribution ID
+ * @param {CloudFront.DistributionConfig} distributionConfig The current CloudFront distribution config
+ * @param {AWS.Region} region
+ * @returns {Promise<CloudFront.UpdateDistributionResult, AWSError>}
+ */
 const updateCloudFrontDistribution = async (distributionID, distributionConfig, region) => {
   const cloudfront = new AWS.CloudFront({
     apiVersion: '2020-05-31',
@@ -65,175 +159,179 @@ const updateCloudFrontDistribution = async (distributionID, distributionConfig, 
 /**
  * Pushes a ZIP file containing Lambda code to S3
  *
- * @param {string} bucket The name of the S3 bucket that the ZIP file resides in
- * @param {string} key The path to the ZIP file in the S3 bucket (must end in .zip)
- * @param {string} filePath Absolute path to ZIP file (must end in .zip)
- * @param {string} functionName The name of the function to update
- * @param {boolean} autoIncrement If true, will append the next Lambda version number to the ZIP file name (functionName is required if true)
- * @param {string} version A version to append to the ZIP file name (ignored if autoIncrement is true)
- * @param {string} region The region the Lambda lives
- * @param {boolean} dryRun If true, will not push to S3
+ * @param config The project configuration to update
  *
  * @return {Promise<void>}
  */
-const pushNewCodeBundle = async ({bucket, key, filePath, functionName, autoIncrement, version, region, dryRun}) => {
+const pushNewCodeBundles = async (config) => {
+  if (!validateConfig(config, ['lambdaCodeS3Bucket'], ['lambdaFunctionName', 'lambdaCodeS3Key', 'lambdaCodeFilePath'])) {
+    throw new Error('Invalid config.')
+  }
+
   const s3 = new AWS.S3({
     apiVersion: '2006-03-01',
-    region
+    region: config.awsRegion
   })
 
-  if (functionName && autoIncrement) {
-    version = `${Number((await getLatestLambdaVersion(functionName, region)).Version) + 1}`
+  for (let trigger of config.cfTriggers) {
+    let version = trigger.lambdaFunctionVersion
+    if (trigger.lambdaFunctionName && config.autoIncrementVersion) {
+      version = `${Number((await getLambdaVersion(trigger.lambdaFunctionName, config.awsRegion)).Version) + 1}`
+    }
+
+    let key = trigger.lambdaCodeS3Key
+    if (version) {
+      key = key.replace(/\.zip$/, `-${version}.zip`)
+    }
+
+    const s3Config = {
+      Bucket: config.lambdaCodeS3Bucket,
+      Key: key,
+      Body: fs.createReadStream(trigger.lambdaCodeFilePath)
+    }
+
+    console.log('Pushing to S3 with the following config:', {
+      ...s3Config,
+      Body: `File: ${trigger.lambdaCodeFilePath}`
+    })
+
+    if (config.dryRun) {
+      console.log('[DRY RUN]: Not pushing code bundles to S3')
+      continue
+    }
+
+    await s3.upload(s3Config).promise()
+
+    console.log('Successfully pushed to S3.')
   }
-
-  if (version) {
-    key = key.replace(/\.zip$/, `-${version}.zip`)
-  }
-
-  const config = {
-    Bucket: bucket,
-    Key: key,
-    Body: fs.createReadStream(filePath)
-  }
-
-  console.log('Pushing to S3 with the following config:', config)
-
-  if (dryRun) {
-    return
-  }
-
-  await s3.upload(config).promise()
-
-  console.log('Successfully pushed to S3.')
 }
 
 /**
  * Updates a Lambda function's code with a ZIP file in S3
  *
- * @param {string} bucket The name of the S3 bucket that the ZIP file resides in
- * @param {string} key The path to the ZIP file in the S3 bucket (must end in ".zip")
- * @param {string} functionName The name of the function to update
- * @param {boolean} useNextVersion If true, will append the next Lambda version number to the key
- * @param {string} version A version to append to the key (ignored if useNextVersion is true)
- * @param {string} region The region the Lambda lives
- * @param {boolean} dryRun If true, will not update the Lambda code
+ * @param config The project configuration to update
  *
  * @return {Promise<void>}
  */
-const deployLambda = async ({bucket, key, functionName, useNextVersion, version, region, dryRun}) => {
+const deployLambdas = async (config) => {
+  if (!validateConfig(config, ['lambdaCodeS3Bucket'], ['lambdaFunctionName', 'lambdaCodeS3Key'])) {
+    throw new Error('Invalid config.')
+  }
+
   const lambda = new AWS.Lambda({
     apiVersion: '2015-03-31',
-    region
+    region: config.awsRegion
   })
 
-  if (useNextVersion) {
-    version = `${Number((await getLatestLambdaVersion(functionName, region)).Version) + 1}`
+  for (let trigger of config.cfTriggers) {
+    let version = trigger.lambdaFunctionVersion
+    if (config.autoIncrementVersion) {
+      version = `${Number((await getLambdaVersion(trigger.lambdaFunctionName, config.awsRegion)).Version) + 1}`
+    }
+
+    let key = trigger.lambdaCodeS3Key
+    if (version) {
+      key = key.replace(/\.zip$/, `-${version}.zip`)
+    }
+
+    const lambdaConfig = {
+      FunctionName: trigger.lambdaFunctionName,
+      S3Bucket: config.lambdaCodeS3Bucket,
+      S3Key: key
+    }
+
+    console.log('Updating Lambda code with the following config', lambdaConfig)
+    if (config.dryRun) {
+      console.log('[DRY RUN]: Not updating Lambda function code')
+      continue
+    }
+
+    await lambda.updateFunctionCode(lambdaConfig).promise()
+
+    console.log('Successfully deployed new code.')
   }
-
-  if (version) {
-    key = key.replace(/\.zip$/, `-${version}.zip`)
-  }
-
-  const config = {
-    FunctionName: functionName,
-    S3Bucket: bucket,
-    S3Key: key
-  }
-
-  console.log('Updating Lambda code with the following config', config)
-  if (dryRun) {
-    return
-  }
-
-  await lambda.updateFunctionCode(config).promise()
-
-  console.log('Successfully deployed new code.')
 }
 
 /**
  * Publishes a new version of a Lambda function
  *
- * @param {string} functionName The name of the function to update
- * @param {string} region The region the Lambda lives
- * @param {boolean} dryRun If true, will not publish a new Lambda version
+ * @param config The project configuration to update
  *
  * @return {Promise<void>}
  */
-const publishLambda = async ({functionName, region, dryRun}) => {
+const publishLambdas = async (config) => {
+  if (!validateConfig(config, [], ['lambdaFunctionName'])) {
+    throw new Error('Invalid config.')
+  }
+
   const lambda = new AWS.Lambda({
     apiVersion: '2015-03-31',
-    region
+    region: config.awsRegion
   })
 
-  const config = {
-    FunctionName: functionName
+  for (let trigger of config.cfTriggers) {
+    const lambdaConfig = {
+      FunctionName: trigger.lambdaFunctionName
+    }
+
+    console.log('Publishing new Lambda version with the following config:', lambdaConfig)
+
+    if (config.dryRun) {
+      console.log('[DRY RUN]: Not publishing new Lambda versions')
+      continue
+    }
+
+    await lambda.publishVersion(lambdaConfig).promise()
+
+    console.log('Successfully published new Lambda version.')
   }
-
-  console.log('Publishing new Lambda version with the following config:', config)
-  if (dryRun) {
-    return
-  }
-
-  await lambda.publishVersion(config).promise()
-
-  console.log('Successfully published new Lambda version.')
 }
 
 /**
  * Sets the Lambda@Edge triggers for the specified Lambda functions on the specified CloudFront distribution
  *
- * @param {string} distributionId The CloudFront distribution ID
- * @param {string} viewerRequest The name of the function to execute when "Viewer Request" is triggered
- * @param {string} originRequest The name of the function to execute when "Origin Request" is triggered
- * @param {string} originResponse The name of the function to execute when "Origin Response" is triggered
- * @param {string} viewerResponse The name of the function to execute when "Viewer Response" is triggered
- * @param {string} region The region the Lambda lives
- * @param {boolean} dryRun If true, will not update the CloudFront triggers
+ * @param config The project configuration to update
  *
  * @return {Promise<void>}
  */
-const activateLambdas = async ({distributionId, viewerRequest, originRequest, originResponse, viewerResponse, region, dryRun}) => {
-  console.log({distributionId, viewerRequest, originRequest, originResponse, viewerResponse, region, dryRun})
+const activateLambdas = async (config) => {
+  if (!validateConfig(config, ['cfDistributionID'], ['lambdaFunctionName'])) {
+    throw new Error('Invalid config.')
+  }
 
   // first, get the CF distro
-  const distroConfig = await getCloudFrontDistributionConfig(distributionId, region)
+  const distroConfig = await getCloudFrontDistributionConfig(config.cfDistributionID, config.awsRegion)
 
-  // then, get the latest Lambda ARNs
-  const lambdaConfigs = {
-    'viewer-request': viewerRequest,
-    'origin-request': originRequest,
-    'origin-response': originResponse,
-    'viewer-response': viewerResponse
-  }
   const lambdaARNs = {}
-  await Promise.all(Object.entries(lambdaConfigs)
-    .filter(([, functionName]) => !!functionName)
-    .map(async ([triggerName, functionName]) => {
-      lambdaARNs[triggerName] = (await getLatestLambdaVersion(functionName, 'us-east-1')).FunctionArn
+  await Promise.all(config.cfTriggers
+    .map(async trigger => {
+      lambdaARNs[trigger.cfTriggerName] = (await getLambdaVersion(trigger.lambdaFunctionName, config.awsRegion, config.autoIncrementVersion ? '' : trigger.lambdaFunctionVersion)).FunctionArn
     }))
 
   console.log('Activating the following ARNs:', lambdaARNs)
 
-  // then, set the arns in the config
+  // then, set the arns in the config (filter out missing arns)
   const updatedConfig = Object.entries(lambdaARNs)
-    .filter(([, functionName]) => !!functionName)
+    .filter(([, arn]) => !!arn)
     .reduce((config, [triggerName, arn]) => changeCloudFrontDistributionLambdaARN(config, arn, triggerName), distroConfig)
 
   // do not update if this is a dry run
-  if (dryRun) {
+  if (config.dryRun) {
+    console.log('[DRY RUN]: Not updating CloudFront distribution triggers')
     return
   }
 
   // finally, update the distro
-  await updateCloudFrontDistribution(distributionId, updatedConfig, region)
+  await updateCloudFrontDistribution(config.cfDistributionID, updatedConfig, config.awsRegion)
 
   console.log('Successfully activated new Lambdas.')
 }
 
 module.exports = {
-  pushNewCodeBundle,
-  deployLambda,
-  publishLambda,
+  pushNewCodeBundles,
+  deployLambdas,
+  publishLambdas,
   activateLambdas,
+  validateConfig,
 }
 

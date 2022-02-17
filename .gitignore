@@ -3,7 +3,8 @@ node_modules
 npm-debug.log
 .DS_Store
 dist
-/build
+build
+coverage
 tmp
 .tmp
 yarn.lock
