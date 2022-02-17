@@ -1,13 +1,16 @@
 const tempWrite = require('temp-write')
-const AWS = require('aws-sdk')
 
 const api = require('./index')
 const cli = require('./bin/update-lambda-edge')
 
-jest.mock('aws-sdk')
 jest.mock('./index')
 
 describe('update-lambda-edge CLI', () => {
+  beforeEach(() => {
+    // silence console output
+    jest.spyOn(console, 'log').mockImplementation(() => {})
+  })
+
   describe('create config', () => {
     it('should set the dry run flag on', () => {
       cli.parse('push --dry-run')

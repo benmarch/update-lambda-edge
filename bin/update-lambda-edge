@@ -6,6 +6,9 @@ const { hideBin } = require('yargs/helpers')
 
 const { pushNewCodeBundles, deployLambdas, publishLambdas, activateLambdas } = require('../index')
 
+// ensures a path is absolute
+const ensureAbsolutePath = (maybeRelativePath, relativeTo) => path.isAbsolute(maybeRelativePath) ? maybeRelativePath : path.resolve(relativeTo, maybeRelativePath)
+
 // get a list of the triggers to update with a given command
 const getActiveTriggers = ({vreq, oreq, vres, ores}) => {
   // if no trigger is specified, then update all of them
@@ -43,7 +46,7 @@ const createConfig = args => {
   // if a config file is supplied, use it as the basis and apply overrides
   if (config) {
     const triggerMap = getActiveTriggers(definedArgs)
-    const projectConfig = require(path.isAbsolute(config) ? config : path.resolve(pwd, config))
+    const projectConfig = require(ensureAbsolutePath(config, pwd))
 
     commandConfig = {
       dryRun: !!dryRun,
@@ -56,7 +59,7 @@ const createConfig = args => {
         .map(trigger => ({
           ...trigger,
           lambdaFunctionVersion: lambdaVersion,
-          lambdaCodeFilePath: path.isAbsolute(trigger.lambdaCodeFilePath) ? trigger.lambdaCodeFilePath : path.resolve(pwd, trigger.lambdaCodeFilePath)
+          lambdaCodeFilePath: ensureAbsolutePath(trigger.lambdaCodeFilePath, pwd)
         })),
     }
   } else {

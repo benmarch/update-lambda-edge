@@ -3,6 +3,61 @@ const path = require('path')
 const AWS = require('aws-sdk')
 
 /**
+ * Validates a configuration object
+ * @param {CommandConfig} config A command configuration object
+ * @param {string[]} requiredFields List of required config fields (excluding cfTriggers)
+ * @param {string[]} requiredTriggerFields List of required config fields for each trigger
+ * @returns {boolean}
+ */
+const validateConfig = (config, requiredFields = [], requiredTriggerFields = []) => {
+  const validFields = ['dryRun', 'awsRegion', 'cfDistributionID', 'autoIncrementVersion', 'lambdaCodeS3Bucket', 'lambdaCodeS3Bucket', 'cfTriggers']
+  const validTriggerFields = ['cfTriggerName', 'lambdaFunctionName', 'lambdaFunctionVersion', 'lambdaCodeS3Key', 'lambdaCodeFilePath']
+
+  // ensure all fields in the config are expected
+  for (let field of Object.keys(config)) {
+    if (!validFields.includes(field)) {
+      console.log(`[VALIDATION ERROR]: unknown field '${field}' found in config.`, config)
+      return false
+    }
+  }
+
+  // ensure all required fields are defined
+  for (let field of requiredFields) {
+    if (typeof config[field] === 'undefined') {
+      console.log(`[VALIDATION ERROR]: '${field}' is required for each trigger.`, config)
+      return false
+    }
+  }
+
+  // ensure that there is at least one trigger
+  if (!config.cfTriggers?.length) {
+    console.log(`[VALIDATION ERROR]: at least one trigger configuration is required.`, config)
+    return false
+  }
+
+  // validate each trigger configuration
+  for (let trigger of config.cfTriggers) {
+    // ensure all fields in the trigger confg are expected
+    for (let field of Object.keys(trigger)) {
+      if (!validTriggerFields.includes(field)) {
+        console.log(`[VALIDATION ERROR]: unknown field '${field}' found in trigger config.`, trigger)
+        return false
+      }
+    }
+
+    // ensure all required fields are defined
+    for (let field of requiredTriggerFields) {
+      if (typeof trigger[field] === 'undefined') {
+        console.log(`[VALIDATION ERROR]: '${field}' is required for each trigger.`, trigger)
+        return false
+      }
+    }
+  }
+
+  return true
+}
+
+/**
  * Iterates through all the versions of a Lambda function to find the most recent sequential version
  *
  * @param {Lambda.FunctionName} functionName The fully qualified Lambda function name
@@ -28,8 +83,11 @@ const getLambdaVersion = async (functionName, region, version= '') => {
     versions.push(...versionData.Versions)
   } while (nextMarker)
 
+  // if no versions have been published, return an empty version
   if (!versions.length) {
-    return ''
+    return {
+      Version: '0'
+    }
   }
 
   if (version) {
@@ -106,6 +164,10 @@ const updateCloudFrontDistribution = async (distributionID, distributionConfig, 
  * @return {Promise<void>}
  */
 const pushNewCodeBundles = async (config) => {
+  if (!validateConfig(config, ['lambdaCodeS3Bucket'], ['lambdaFunctionName', 'lambdaCodeS3Key', 'lambdaCodeFilePath'])) {
+    throw new Error('Invalid config.')
+  }
+
   const s3 = new AWS.S3({
     apiVersion: '2006-03-01',
     region: config.awsRegion
@@ -149,6 +211,10 @@ const pushNewCodeBundles = async (config) => {
  * @return {Promise<void>}
  */
 const deployLambdas = async (config) => {
+  if (!validateConfig(config, ['lambdaCodeS3Bucket'], ['lambdaFunctionName', 'lambdaCodeS3Key'])) {
+    throw new Error('Invalid config.')
+  }
+
   const lambda = new AWS.Lambda({
     apiVersion: '2015-03-31',
     region: config.awsRegion
@@ -191,6 +257,10 @@ const deployLambdas = async (config) => {
  * @return {Promise<void>}
  */
 const publishLambdas = async (config) => {
+  if (!validateConfig(config, [], ['lambdaFunctionName'])) {
+    throw new Error('Invalid config.')
+  }
+
   const lambda = new AWS.Lambda({
     apiVersion: '2015-03-31',
     region: config.awsRegion
@@ -221,13 +291,17 @@ const publishLambdas = async (config) => {
  * @return {Promise<void>}
  */
 const activateLambdas = async (config) => {
+  if (!validateConfig(config, ['cfDistributionID'], ['lambdaFunctionName'])) {
+    throw new Error('Invalid config.')
+  }
+
   // first, get the CF distro
   const distroConfig = await getCloudFrontDistributionConfig(config.cfDistributionID, config.awsRegion)
 
   const lambdaARNs = {}
   await Promise.all(config.cfTriggers
     .map(async trigger => {
-      lambdaARNs[trigger.cfTriggerName] = (await getLambdaVersion(trigger.lambdaFunctionName, config.awsRegion, !config.autoIncrement && trigger.lambdaFunctionVersion)).FunctionArn
+      lambdaARNs[trigger.cfTriggerName] = (await getLambdaVersion(trigger.lambdaFunctionName, config.awsRegion, config.autoIncrementVersion ? '' : trigger.lambdaFunctionVersion)).FunctionArn
     }))
 
   console.log('Activating the following ARNs:', lambdaARNs)
@@ -254,5 +328,6 @@ module.exports = {
   deployLambdas,
   publishLambdas,
   activateLambdas,
+  validateConfig,
 }
 
