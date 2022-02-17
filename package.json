@@ -1,6 +1,6 @@
 {
   "name": "update-lambda-edge",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "description": "Scripts for updating CloudFront distributions with new Lambda@Edge function versions",
   "main": "index.js",
   "bin": "bin/update-lambda-edge",
@@ -16,8 +16,14 @@
     "Lambda",
     "Lambda@Edge",
     "CloudFront",
+    "Distribution",
     "S3",
-    "Update"
+    "Update",
+    "Test",
+    "Testing",
+    "Deploy",
+    "Publish",
+    "Activate"
   ],
   "author": "Ben March",
   "license": "ISC",
