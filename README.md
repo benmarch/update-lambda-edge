@@ -55,6 +55,7 @@ Start with this configuration file template and modify to fit your needs (trigge
   "awsRegion": "us-east-1",
   "autoIncrementVersion": true,
   "cfDistributionID": "1XY234ABC",
+  "cacheBehaviorPath": "default",
   "lambdaCodeS3Bucket": "my-s3-bucket",
   "cfTriggers": [
     {
@@ -208,6 +209,10 @@ Updates the CloudFront configuration to point to the newly published (or previou
 
 #### Optional options
 
+- CacheBehavior PathPattern
+    - CLI: `--cache-behavior-path`
+    - Config: `cacheBehaviorPath`
+    - Note: used to identify the cache behavior to attach the Lambdas to. If left blank, will default to the DefaultCacheBehavior
 - Lambda code version (overrides auto-increment)
     - CLI: `--lambda-version`
     - Config: none
@@ -287,11 +292,6 @@ stage('Deploy - QA') {
 ```
 
 Then I have a downstream job to run the rest of the Prod commands to activate them.
-
-## Known Limitations
-
-- Currently, this will only modify triggers on the default cache behavior of a CloudFront distribution. 
-  If requested, support for additional behaviors can be added.
 
 ## Contributing
 
