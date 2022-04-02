@@ -10,7 +10,7 @@ const AWS = require('aws-sdk')
  * @returns {boolean}
  */
 const validateConfig = (config, requiredFields = [], requiredTriggerFields = []) => {
-  const validFields = ['dryRun', 'awsRegion', 'cfDistributionID', 'autoIncrementVersion', 'lambdaCodeS3Bucket', 'lambdaCodeS3Bucket', 'cfTriggers']
+  const validFields = ['dryRun', 'awsRegion', 'cfDistributionID', 'autoIncrementVersion', 'lambdaCodeS3Bucket', 'lambdaCodeS3Bucket', 'cfTriggers', 'cacheBehavior']
   const validTriggerFields = ['cfTriggerName', 'lambdaFunctionName', 'lambdaFunctionVersion', 'lambdaCodeS3Key', 'lambdaCodeFilePath']
 
   // ensure all fields in the config are expected
@@ -123,9 +123,14 @@ const getCloudFrontDistributionConfig = async (distributionID, region) => {
  * @param {CloudFront.EventType} triggerName The name of the trigger event ['viewer-request'|'origin-request'|'origin-response'|'viewer-response']
  * @returns {*}
  */
-const changeCloudFrontDistributionLambdaARN = (distributionConfig, lambdaARN, triggerName) => {
+const changeCloudFrontDistributionLambdaARN = (distributionConfig, lambdaARN, triggerName, cacheBehavior) => {
+
   try {
-    const lambdaFunction = distributionConfig.DistributionConfig.DefaultCacheBehavior.LambdaFunctionAssociations.Items.find(item => item.EventType === triggerName)
+    const cacheBehaviors = cacheBehavior === 'default' ?
+      distributionConfig.DefaultCacheBehavior :
+      distributionConfig.CacheBehaviors.Items.find(item => item.PathPattern == cacheBehavior)
+
+    const lambdaFunction = cacheBehaviors.LambdaFunctionAssociations.Items.find(item => item.EventType === triggerName)
 
     if (lambdaFunction.LambdaFunctionARN !== lambdaARN) {
       lambdaFunction.LambdaFunctionARN = lambdaARN
@@ -295,7 +300,7 @@ const publishLambdas = async (config) => {
  * @return {Promise<void>}
  */
 const activateLambdas = async (config) => {
-  if (!validateConfig(config, ['cfDistributionID'], ['lambdaFunctionName'])) {
+  if (!validateConfig(config, ['cfDistributionID', 'cacheBehavior'], ['lambdaFunctionName'])) {
     throw new Error('Invalid config.')
   }
 
@@ -309,11 +314,11 @@ const activateLambdas = async (config) => {
     }))
 
   console.log('Activating the following ARNs:', lambdaARNs)
-
+  const cacheBehavior = config.cacheBehavior
   // then, set the arns in the config (filter out missing arns)
   const updatedConfig = Object.entries(lambdaARNs)
     .filter(([, arn]) => !!arn)
-    .reduce((config, [triggerName, arn]) => changeCloudFrontDistributionLambdaARN(config, arn, triggerName), distroConfig)
+    .reduce((config, [triggerName, arn]) => changeCloudFrontDistributionLambdaARN(config, arn, triggerName, cacheBehavior), distroConfig)
 
   // do not update if this is a dry run
   if (config.dryRun) {
