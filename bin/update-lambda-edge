@@ -52,7 +52,7 @@ const createConfig = args => {
       dryRun: !!dryRun,
       cfDistributionID: distributionId || projectConfig.cfDistributionID,
       autoIncrementVersion: lambdaVersion ? false : projectConfig.autoIncrementVersion,
-      cacheBehavior: projectConfig.cacheBehaviorPath || 'default',
+      cacheBehaviorPath: cacheBehaviorPath || projectConfig.cacheBehaviorPath || 'default',
       lambdaCodeS3Bucket: bucket || projectConfig.lambdaCodeS3Bucket,
       awsRegion: region || projectConfig.awsRegion,
       cfTriggers: projectConfig.cfTriggers
@@ -69,7 +69,7 @@ const createConfig = args => {
       dryRun: !!dryRun,
       cfDistributionID: distributionId,
       autoIncrementVersion: lambdaVersion ? false : !!autoIncrement,
-      cacheBehavior: cacheBehaviorPath || 'default',
+      cacheBehaviorPath: cacheBehaviorPath || 'default',
       lambdaCodeS3Bucket: bucket,
       awsRegion: region,
       cfTriggers: [
@@ -160,6 +160,10 @@ const cli = yargs(hideBin(process.argv))
         type: 'string',
         description: 'The CloudFront distribution ID'
       })
+      .option('cache-behavior-path', {
+        type: 'string',
+        description: 'The PathPattern of the CloudFront CacheBehavior to use. Leaving it blank will use the DefaultCacheBehavior'
+      })
       .option('trigger-name', {
         alias: 't',
         type: 'string',
@@ -177,10 +181,6 @@ const cli = yargs(hideBin(process.argv))
       .option('lambda-version', {
         type: 'string',
         description: 'If true, will activate this version of the Lambda (overrides auto-increment)'
-      })
-      .option('cache-behavior-path', {
-        type: 'string',
-        description: 'If set, will activate this version of the Lambda to the corresponding cache behavior'
       })
   }, args => activateLambdas(createConfig(args)))
   .option('pwd', {

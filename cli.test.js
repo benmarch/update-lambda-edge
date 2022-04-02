@@ -86,43 +86,43 @@ describe('update-lambda-edge CLI', () => {
         cli.parse(`push --config ${configFilePath}`)
 
         expect(api.pushNewCodeBundles).toHaveBeenCalledWith({
-            dryRun: false,
-            awsRegion: 'fake',
-            cfDistributionID: 'fake',
-            autoIncrementVersion: true,
-            lambdaCodeS3Bucket: 'fake',
-            cfTriggers: [
-              {
-                cfTriggerName: 'viewer-request',
-                lambdaFunctionName: 'viewer-request-fake',
-                lambdaCodeS3Key: 'root/fake/path/to/vreq-lambda.zip',
-                lambdaCodeFilePath: '/absolute/path/to/vreq-lambda-local.zip',
-                lambdaFunctionVersion: undefined,
-              },
-              {
-                cfTriggerName: 'origin-request',
-                lambdaFunctionName: 'origin-request-fake',
-                lambdaCodeS3Key: 'root/fake/path/to/oreq-lambda.zip',
-                lambdaCodeFilePath: __dirname + '/relative/path/to/oreq-lambda-local.zip',
-                lambdaFunctionVersion: undefined,
-              },
-              {
-                cfTriggerName: 'origin-response',
-                lambdaFunctionName: 'origin-response-fake',
-                lambdaCodeS3Key: 'root/fake/path/to/ores-lambda.zip',
-                lambdaCodeFilePath: '/dist/ores-lambda-local.zip',
-                lambdaFunctionVersion: undefined,
-              },
-              {
-                cfTriggerName: 'viewer-response',
-                lambdaFunctionName: 'viewer-response-fake',
-                lambdaCodeS3Key: 'root/fake/path/to/vres-lambda.zip',
-                lambdaCodeFilePath: '/dist/vres-lambda-local.zip',
-                lambdaFunctionVersion: undefined,
-              }
-            ]
-          }
-        )
+          dryRun: false,
+          awsRegion: 'fake',
+          cfDistributionID: 'fake',
+          cacheBehaviorPath: 'default',
+          autoIncrementVersion: true,
+          lambdaCodeS3Bucket: 'fake',
+          cfTriggers: [
+            {
+              cfTriggerName: 'viewer-request',
+              lambdaFunctionName: 'viewer-request-fake',
+              lambdaCodeS3Key: 'root/fake/path/to/vreq-lambda.zip',
+              lambdaCodeFilePath: '/absolute/path/to/vreq-lambda-local.zip',
+              lambdaFunctionVersion: undefined,
+            },
+            {
+              cfTriggerName: 'origin-request',
+              lambdaFunctionName: 'origin-request-fake',
+              lambdaCodeS3Key: 'root/fake/path/to/oreq-lambda.zip',
+              lambdaCodeFilePath: __dirname + '/relative/path/to/oreq-lambda-local.zip',
+              lambdaFunctionVersion: undefined,
+            },
+            {
+              cfTriggerName: 'origin-response',
+              lambdaFunctionName: 'origin-response-fake',
+              lambdaCodeS3Key: 'root/fake/path/to/ores-lambda.zip',
+              lambdaCodeFilePath: '/dist/ores-lambda-local.zip',
+              lambdaFunctionVersion: undefined,
+            },
+            {
+              cfTriggerName: 'viewer-response',
+              lambdaFunctionName: 'viewer-response-fake',
+              lambdaCodeS3Key: 'root/fake/path/to/vres-lambda.zip',
+              lambdaCodeFilePath: '/dist/vres-lambda-local.zip',
+              lambdaFunctionVersion: undefined,
+            }
+          ]
+        })
       })
 
       it('should properly parse paths when pwd is set', () => {
@@ -147,27 +147,27 @@ describe('update-lambda-edge CLI', () => {
         cli.parse(`push --config ${configFilePath} --region somewhere --distribution-id MYCLOUDFRONT --bucket S3 --lambda-version 5`)
 
         expect(api.pushNewCodeBundles).toHaveBeenCalledWith({
-            dryRun: false,
-            awsRegion: 'somewhere',
-            cfDistributionID: 'MYCLOUDFRONT',
-            autoIncrementVersion: false,
-            lambdaCodeS3Bucket: 'S3',
-            cfTriggers: [
-              expect.objectContaining({
-                lambdaFunctionVersion: '5'
-              }),
-              expect.objectContaining({
-                lambdaFunctionVersion: '5'
-              }),
-              expect.objectContaining({
-                lambdaFunctionVersion: '5'
-              }),
-              expect.objectContaining({
-                lambdaFunctionVersion: '5'
-              })
-            ]
-          }
-        )
+          dryRun: false,
+          awsRegion: 'somewhere',
+          cfDistributionID: 'MYCLOUDFRONT',
+          cacheBehaviorPath: 'default',
+          autoIncrementVersion: false,
+          lambdaCodeS3Bucket: 'S3',
+          cfTriggers: [
+            expect.objectContaining({
+              lambdaFunctionVersion: '5'
+            }),
+            expect.objectContaining({
+              lambdaFunctionVersion: '5'
+            }),
+            expect.objectContaining({
+              lambdaFunctionVersion: '5'
+            }),
+            expect.objectContaining({
+              lambdaFunctionVersion: '5'
+            })
+          ]
+        })
       })
 
       it('should only update the specified triggers', () => {
@@ -198,6 +198,7 @@ describe('update-lambda-edge CLI', () => {
       expect(api.pushNewCodeBundles).toHaveBeenCalledWith({
         dryRun: false,
         cfDistributionID: undefined,
+        cacheBehaviorPath: 'default',
         autoIncrementVersion: true,
         lambdaCodeS3Bucket: 'test-bucket',
         awsRegion: undefined,
@@ -221,6 +222,7 @@ describe('update-lambda-edge CLI', () => {
       expect(api.deployLambdas).toHaveBeenCalledWith({
         dryRun: false,
         cfDistributionID: undefined,
+        cacheBehaviorPath: 'default',
         autoIncrementVersion: true,
         lambdaCodeS3Bucket: 'test-bucket',
         awsRegion: undefined,
@@ -244,6 +246,7 @@ describe('update-lambda-edge CLI', () => {
       expect(api.publishLambdas).toHaveBeenCalledWith({
         dryRun: false,
         cfDistributionID: undefined,
+        cacheBehaviorPath: 'default',
         autoIncrementVersion: false,
         lambdaCodeS3Bucket: undefined,
         awsRegion: undefined,
@@ -262,11 +265,12 @@ describe('update-lambda-edge CLI', () => {
 
   describe('activate', () => {
     it('should activate a single Lambda bundle', () => {
-      cli.parse('activate --distribution-id cloudfront --trigger-name viewer-request --function-name test-function --lambda-version 5')
+      cli.parse('activate --distribution-id cloudfront --cache-behavior-path "/*" --trigger-name viewer-request --function-name test-function --lambda-version 5')
 
       expect(api.activateLambdas).toHaveBeenCalledWith({
         dryRun: false,
         cfDistributionID: 'cloudfront',
+        cacheBehaviorPath: '/*',
         autoIncrementVersion: false,
         lambdaCodeS3Bucket: undefined,
         awsRegion: undefined,

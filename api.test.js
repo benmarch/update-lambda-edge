@@ -86,6 +86,7 @@ describe('update lambda edge API', () => {
     fakeConfig = {
       awsRegion: undefined,
       cfDistributionID: 'cloudfront',
+      cacheBehaviorPath: 'default',
       autoIncrementVersion: true,
       lambdaCodeS3Bucket: 'bucket',
       cfTriggers: [
@@ -316,8 +317,9 @@ describe('update lambda edge API', () => {
   })
 
   describe('activateLambdas()', () => {
+    let cloudFrontDistributionConfig
     beforeEach(() => {
-      cloudFrontGetDistributionConfigMock.mockResolvedValue({
+      cloudFrontDistributionConfig = {
         ETag: 'etag',
         DistributionConfig: {
           DefaultCacheBehavior: {
@@ -341,9 +343,38 @@ describe('update lambda edge API', () => {
                 }
               ]
             }
-          }
-        }
-      })
+          },
+          CacheBehaviors: {
+            Items: [
+              {
+                PathPattern: '/*',
+                LambdaFunctionAssociations: {
+                  Items: [
+                    {
+                      EventType: 'viewer-request',
+                      LambdaFunctionARN: 'old-arn'
+                    },
+                    {
+                      EventType: 'origin-request',
+                      LambdaFunctionARN: 'old-arn'
+                    },
+                    {
+                      EventType: 'origin-response',
+                      LambdaFunctionARN: 'old-arn'
+                    },
+                    {
+                      EventType: 'viewer-response',
+                      LambdaFunctionARN: 'old-arn'
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+        },
+      }
+
+      cloudFrontGetDistributionConfigMock.mockResolvedValue(cloudFrontDistributionConfig)
 
       lambdaListVersionsByFunctionMock.mockImplementation(() => ({
         Versions: [
@@ -369,7 +400,7 @@ describe('update lambda edge API', () => {
       return expect(activateLambdas(fakeConfig)).rejects.toThrow('Invalid config.')
     })
 
-    it('should update the distribution config with the latest ARNs', async () => {
+    it('should update the default cache behavior with the latest ARNs', async () => {
       await activateLambdas(fakeConfig)
 
       expect(cloudFrontUpdateDistributionMock).toHaveBeenCalledTimes(1)
@@ -398,12 +429,101 @@ describe('update lambda edge API', () => {
                 }
               ]
             }
+          },
+          CacheBehaviors: {
+            Items: [
+              {
+                PathPattern: '/*',
+                LambdaFunctionAssociations: {
+                  Items: [
+                    {
+                      EventType: 'viewer-request',
+                      LambdaFunctionARN: 'old-arn'
+                    },
+                    {
+                      EventType: 'origin-request',
+                      LambdaFunctionARN: 'old-arn'
+                    },
+                    {
+                      EventType: 'origin-response',
+                      LambdaFunctionARN: 'old-arn'
+                    },
+                    {
+                      EventType: 'viewer-response',
+                      LambdaFunctionARN: 'old-arn'
+                    }
+                  ]
+                }
+              }
+            ]
           }
         }
       })
     })
 
-    it('should update the distribution config with specific version ARNs', async () => {
+    it('should update the specified cache behavior with the latest ARNs', async () => {
+      fakeConfig.cacheBehaviorPath = '/*'
+      await activateLambdas(fakeConfig)
+
+      expect(cloudFrontUpdateDistributionMock).toHaveBeenCalledTimes(1)
+      expect(cloudFrontUpdateDistributionMock).toHaveBeenCalledWith({
+        Id: 'cloudfront',
+        IfMatch: 'etag',
+        DistributionConfig: {
+          DefaultCacheBehavior: {
+            LambdaFunctionAssociations: {
+              Items: [
+                {
+                  EventType: 'viewer-request',
+                  LambdaFunctionARN: 'old-arn'
+                },
+                {
+                  EventType: 'origin-request',
+                  LambdaFunctionARN: 'old-arn'
+                },
+                {
+                  EventType: 'origin-response',
+                  LambdaFunctionARN: 'old-arn'
+                },
+                {
+                  EventType: 'viewer-response',
+                  LambdaFunctionARN: 'old-arn'
+                }
+              ]
+            }
+          },
+          CacheBehaviors: {
+            Items: [
+              {
+                PathPattern: '/*',
+                LambdaFunctionAssociations: {
+                  Items: [
+                    {
+                      EventType: 'viewer-request',
+                      LambdaFunctionARN: 'arn-v3'
+                    },
+                    {
+                      EventType: 'origin-request',
+                      LambdaFunctionARN: 'arn-v3'
+                    },
+                    {
+                      EventType: 'origin-response',
+                      LambdaFunctionARN: 'arn-v3'
+                    },
+                    {
+                      EventType: 'viewer-response',
+                      LambdaFunctionARN: 'arn-v3'
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      })
+    })
+
+    it('should update the default cache behavior with specific version ARNs', async () => {
       fakeConfig.cfTriggers[0].lambdaFunctionVersion = '1'
       fakeConfig.cfTriggers[1].lambdaFunctionVersion = '2'
       fakeConfig.cfTriggers[2].lambdaFunctionVersion = '3'
@@ -437,8 +557,47 @@ describe('update lambda edge API', () => {
                 }
               ]
             }
-          }
+          },
+          CacheBehaviors: {
+            Items: [
+              {
+                PathPattern: '/*',
+                LambdaFunctionAssociations: {
+                  Items: [
+                    {
+                      EventType: 'viewer-request',
+                      LambdaFunctionARN: 'old-arn'
+                    },
+                    {
+                      EventType: 'origin-request',
+                      LambdaFunctionARN: 'old-arn'
+                    },
+                    {
+                      EventType: 'origin-response',
+                      LambdaFunctionARN: 'old-arn'
+                    },
+                    {
+                      EventType: 'viewer-response',
+                      LambdaFunctionARN: 'old-arn'
+                    }
+                  ]
+                }
+              }
+            ]
+          },
         }
+      })
+    })
+
+    it('should not update anything if invalid cache behavior path is supplied', async () => {
+      fakeConfig.cacheBehaviorPath = '/invalid/path/pattern/*'
+      await activateLambdas(fakeConfig)
+
+      expect(cloudFrontUpdateDistributionMock).toHaveBeenCalledTimes(1)
+      expect(cloudFrontUpdateDistributionMock).toHaveBeenCalledWith({
+        Id: 'cloudfront',
+        IfMatch: 'etag',
+        DistributionConfig: cloudFrontDistributionConfig.DistributionConfig
       })
     })
 
