@@ -7,17 +7,18 @@ const { hideBin } = require('yargs/helpers')
 const { pushNewCodeBundles, deployLambdas, publishLambdas, activateLambdas } = require('../index')
 
 // ensures a path is absolute
-const ensureAbsolutePath = (maybeRelativePath, relativeTo) => path.isAbsolute(maybeRelativePath) ? maybeRelativePath : path.resolve(relativeTo, maybeRelativePath)
+const ensureAbsolutePath = (maybeRelativePath, relativeTo) =>
+  path.isAbsolute(maybeRelativePath) ? maybeRelativePath : path.resolve(relativeTo, maybeRelativePath)
 
 // get a list of the triggers to update with a given command
-const getActiveTriggers = ({vreq, oreq, vres, ores}) => {
+const getActiveTriggers = ({ vreq, oreq, vres, ores }) => {
   // if no trigger is specified, then update all of them
   if (!vreq && !oreq && !vres && !ores) {
     return {
       'viewer-request': true,
       'origin-request': true,
       'origin-response': true,
-      'viewer-response': true
+      'viewer-response': true,
     }
   }
 
@@ -26,7 +27,7 @@ const getActiveTriggers = ({vreq, oreq, vres, ores}) => {
     'viewer-request': vreq,
     'origin-request': oreq,
     'origin-response': ores,
-    'viewer-response': vres
+    'viewer-response': vres,
   }
 }
 
@@ -36,10 +37,24 @@ const getActiveTriggers = ({vreq, oreq, vres, ores}) => {
  * @param args
  * @returns CommandConfig
  */
-const createConfig = args => {
+const createConfig = (args) => {
   // removes undefined properties
   const definedArgs = JSON.parse(JSON.stringify(args))
-  const { config, pwd, filePath, distributionId, triggerName, functionName, lambdaVersion, autoIncrement, bucket, key, region, dryRun, cacheBehaviorPath } = definedArgs
+  const {
+    config,
+    pwd,
+    filePath,
+    distributionId,
+    triggerName,
+    functionName,
+    lambdaVersion,
+    autoIncrement,
+    bucket,
+    key,
+    region,
+    dryRun,
+    cacheBehaviorPath,
+  } = definedArgs
 
   let commandConfig
 
@@ -56,11 +71,11 @@ const createConfig = args => {
       lambdaCodeS3Bucket: bucket || projectConfig.lambdaCodeS3Bucket,
       awsRegion: region || projectConfig.awsRegion,
       cfTriggers: projectConfig.cfTriggers
-        .filter(trigger => triggerMap[trigger.cfTriggerName])
-        .map(trigger => ({
+        .filter((trigger) => triggerMap[trigger.cfTriggerName])
+        .map((trigger) => ({
           ...trigger,
           lambdaFunctionVersion: lambdaVersion,
-          lambdaCodeFilePath: ensureAbsolutePath(trigger.lambdaCodeFilePath, pwd)
+          lambdaCodeFilePath: ensureAbsolutePath(trigger.lambdaCodeFilePath, pwd),
         })),
     }
   } else {
@@ -78,9 +93,9 @@ const createConfig = args => {
           lambdaFunctionName: functionName,
           lambdaFunctionVersion: lambdaVersion,
           lambdaCodeS3Key: key,
-          lambdaCodeFilePath: filePath
-        }
-      ]
+          lambdaCodeFilePath: filePath,
+        },
+      ],
     }
   }
 
@@ -91,132 +106,156 @@ const createConfig = args => {
 const cli = yargs(hideBin(process.argv))
   .help()
 
-  .command('push', 'Pushes a ZIP file containing Lambda code to S3', yargs => {
-    yargs
-      .option('bucket', {
-        type: 'string',
-        description: 'The name of the S3 bucket to push the ZIP file to'
-      })
-      .option('key', {
-        type: 'string',
-        description: 'The file path to the ZIP file in the S3 bucket'
-      })
-      .option('file-path', {
-        type: 'string',
-        description: 'The relative file path to the ZIP file on local FS'
-      })
-      .option('function-name', {
-        type: 'string',
-        description: 'If auto-increment is true, this is required to determine the next Lambda version number'
-      })
-      .option('auto-increment', {
-        type: 'boolean',
-        description: 'If true, will append the file name with the next Lambda version',
-        default: true
-      })
-      .option('lambda-version', {
-        type: 'string',
-        description: 'Will append this version number to the file name (overrides auto-increment)'
-      })
-  }, args => pushNewCodeBundles(createConfig(args)))
+  .command(
+    'push',
+    'Pushes a ZIP file containing Lambda code to S3',
+    (yargs) => {
+      yargs
+        .option('bucket', {
+          type: 'string',
+          description: 'The name of the S3 bucket to push the ZIP file to',
+        })
+        .option('key', {
+          type: 'string',
+          description: 'The file path to the ZIP file in the S3 bucket',
+        })
+        .option('file-path', {
+          type: 'string',
+          description: 'The relative file path to the ZIP file on local FS',
+        })
+        .option('function-name', {
+          type: 'string',
+          description: 'If auto-increment is true, this is required to determine the next Lambda version number',
+        })
+        .option('auto-increment', {
+          type: 'boolean',
+          description: 'If true, will append the file name with the next Lambda version',
+          default: true,
+        })
+        .option('lambda-version', {
+          type: 'string',
+          description: 'Will append this version number to the file name (overrides auto-increment)',
+        })
+    },
+    (args) => pushNewCodeBundles(createConfig(args)),
+  )
 
-  .command('deploy', 'Updates the code of an existing Lambda function with a new ZIP file in S3', yargs => {
-    yargs
-      .option('bucket', {
-        type: 'string',
-        description: 'The name of the S3 bucket where the ZIP file lives'
-      })
-      .option('key', {
-        type: 'string',
-        description: 'The file path to the ZIP file in the S3 bucket'
-      })
-      .option('function-name', {
-        type: 'string',
-        description: 'The name of the Lambda function to update'
-      })
-      .option('auto-increment', {
-        type: 'boolean',
-        description: 'If true, look for a ZIP file with the next Lambda version appended to the name',
-        default: true
-      })
-      .option('lambda-version', {
-        type: 'string',
-        description: 'Will append this version number to the S3 key (overrides auto-increment)'
-      })
-  }, args => deployLambdas(createConfig(args)))
+  .command(
+    'deploy',
+    'Updates the code of an existing Lambda function with a new ZIP file in S3',
+    (yargs) => {
+      yargs
+        .option('bucket', {
+          type: 'string',
+          description: 'The name of the S3 bucket where the ZIP file lives',
+        })
+        .option('key', {
+          type: 'string',
+          description: 'The file path to the ZIP file in the S3 bucket',
+        })
+        .option('function-name', {
+          type: 'string',
+          description: 'The name of the Lambda function to update',
+        })
+        .option('auto-increment', {
+          type: 'boolean',
+          description: 'If true, look for a ZIP file with the next Lambda version appended to the name',
+          default: true,
+        })
+        .option('lambda-version', {
+          type: 'string',
+          description: 'Will append this version number to the S3 key (overrides auto-increment)',
+        })
+    },
+    (args) => deployLambdas(createConfig(args)),
+  )
 
-  .command('publish', 'Publishes a new Lambda version', yargs => {
-    yargs
-      .option('function-name', {
+  .command(
+    'publish',
+    'Publishes a new Lambda version',
+    (yargs) => {
+      yargs.option('function-name', {
         type: 'string',
-        description: 'The name of the Lambda function to publish'
+        description: 'The name of the Lambda function to publish',
       })
-  }, args => publishLambdas(createConfig(args)))
+    },
+    (args) => publishLambdas(createConfig(args)),
+  )
 
-  .command('activate', 'Activates the latest versions of Lambda@Edge functions on specified CloudFront distribution', yargs => {
-    yargs
-      .option('distribution-id', {
-        alias: 'd',
-        type: 'string',
-        description: 'The CloudFront distribution ID'
-      })
-      .option('cache-behavior-path', {
-        type: 'string',
-        description: 'The PathPattern of the CloudFront CacheBehavior to use. Leaving it blank will use the DefaultCacheBehavior'
-      })
-      .option('trigger-name', {
-        alias: 't',
-        type: 'string',
-        description: 'The name of the trigger to update'
-      })
-      .option('function-name', {
-        type: 'string',
-        description: 'The name of the Lambda function to activate'
-      })
-      .option('auto-increment', {
-        type: 'boolean',
-        description: 'If true, will activate the latest published version of the Lambda (default)',
-        default: true
-      })
-      .option('lambda-version', {
-        type: 'string',
-        description: 'If true, will activate this version of the Lambda (overrides auto-increment)'
-      })
-  }, args => activateLambdas(createConfig(args)))
+  .command(
+    'activate',
+    'Activates the latest versions of Lambda@Edge functions on specified CloudFront distribution',
+    (yargs) => {
+      yargs
+        .option('distribution-id', {
+          alias: 'd',
+          type: 'string',
+          description: 'The CloudFront distribution ID',
+        })
+        .option('cache-behavior-path', {
+          type: 'string',
+          description:
+            'The PathPattern of the CloudFront CacheBehavior to use. Leaving it blank will use the DefaultCacheBehavior',
+        })
+        .option('trigger-name', {
+          alias: 't',
+          type: 'string',
+          description: 'The name of the trigger to update',
+        })
+        .option('function-name', {
+          type: 'string',
+          description: 'The name of the Lambda function to activate',
+        })
+        .option('auto-increment', {
+          type: 'boolean',
+          description: 'If true, will activate the latest published version of the Lambda (default)',
+          default: true,
+        })
+        .option('lambda-version', {
+          type: 'string',
+          description: 'If true, will activate this version of the Lambda (overrides auto-increment)',
+        })
+    },
+    (args) => activateLambdas(createConfig(args)),
+  )
   .option('pwd', {
     type: 'string',
     description: 'Set the present working directory',
-    default: process.cwd()
+    default: process.cwd(),
   })
   .option('config', {
     alias: 'c',
     type: 'string',
-    description: 'Path to config file (absolute, or relative to pwd)'
+    description: 'Path to config file (absolute, or relative to pwd)',
   })
   .option('region', {
     alias: 'r',
     type: 'string',
-    description: 'The region that the base Lambdas are deployed to'
+    description: 'The region that the base Lambdas are deployed to',
   })
   .option('vreq', {
     type: 'boolean',
-    description: 'When using a config file, setting this will update the Viewer Request Lambda or trigger. (Set none to update all)'
+    description:
+      'When using a config file, setting this will update the Viewer Request Lambda or trigger. (Set none to update all)',
   })
   .option('oreq', {
     type: 'boolean',
-    description: 'When using a config file, setting this will update the Origin Request Lambda or trigger. (Set none to update all)'
+    description:
+      'When using a config file, setting this will update the Origin Request Lambda or trigger. (Set none to update all)',
   })
   .option('ores', {
     type: 'boolean',
-    description: 'When using a config file, setting this will update the Origin Response Lambda or trigger. (Set none to update all)'
+    description:
+      'When using a config file, setting this will update the Origin Response Lambda or trigger. (Set none to update all)',
   })
   .option('vres', {
     type: 'boolean',
-    description: 'When using a config file, setting this will update the Viewer Response Lambda or trigger. (Set none to update all)'
+    description:
+      'When using a config file, setting this will update the Viewer Response Lambda or trigger. (Set none to update all)',
   })
   .option('dry-run', {
     type: 'boolean',
-    description: 'If true, will only print out debug info; it will not update anything in AWS'
+    description: 'If true, will only print out debug info; it will not update anything in AWS',
   })
 
 // initialize CLI

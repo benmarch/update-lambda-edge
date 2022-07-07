@@ -1,5 +1,4 @@
 const fs = require('fs')
-const path = require('path')
 const AWS = require('aws-sdk')
 
 /**
@@ -10,8 +9,23 @@ const AWS = require('aws-sdk')
  * @returns {boolean}
  */
 const validateConfig = (config, requiredFields = [], requiredTriggerFields = []) => {
-  const validFields = ['dryRun', 'awsRegion', 'cfDistributionID', 'cacheBehaviorPath', 'autoIncrementVersion', 'lambdaCodeS3Bucket', 'lambdaCodeS3Bucket', 'cfTriggers']
-  const validTriggerFields = ['cfTriggerName', 'lambdaFunctionName', 'lambdaFunctionVersion', 'lambdaCodeS3Key', 'lambdaCodeFilePath']
+  const validFields = [
+    'dryRun',
+    'awsRegion',
+    'cfDistributionID',
+    'cacheBehaviorPath',
+    'autoIncrementVersion',
+    'lambdaCodeS3Bucket',
+    'lambdaCodeS3Bucket',
+    'cfTriggers',
+  ]
+  const validTriggerFields = [
+    'cfTriggerName',
+    'lambdaFunctionName',
+    'lambdaFunctionVersion',
+    'lambdaCodeS3Key',
+    'lambdaCodeFilePath',
+  ]
 
   // ensure all fields in the config are expected
   for (let field of Object.keys(config)) {
@@ -65,19 +79,21 @@ const validateConfig = (config, requiredFields = [], requiredTriggerFields = [])
  * @param {string} version The sequential version number to get (gets the latest if blank)
  * @returns {Promise<Lambda.Version>}
  */
-const getLambdaVersion = async (functionName, region, version= '') => {
+const getLambdaVersion = async (functionName, region, version = '') => {
   const lambda = new AWS.Lambda({
     apiVersion: '2015-03-31',
-    region
+    region,
   })
   const versions = []
   let nextMarker
 
   do {
-    const versionData = await lambda.listVersionsByFunction({
-      FunctionName: functionName,
-      Marker: nextMarker,
-    }).promise()
+    const versionData = await lambda
+      .listVersionsByFunction({
+        FunctionName: functionName,
+        Marker: nextMarker,
+      })
+      .promise()
 
     nextMarker = versionData.NextMarker
     versions.push(...versionData.Versions)
@@ -86,15 +102,17 @@ const getLambdaVersion = async (functionName, region, version= '') => {
   // if no versions have been published, return an empty version
   if (!versions.length) {
     return {
-      Version: '0'
+      Version: '0',
     }
   }
 
   if (version) {
-    return versions.find(v => v.Version === version)
+    return versions.find((v) => v.Version === version)
   }
 
-  return versions.filter(version => version.Version !== '$LATEST').sort((a, b) => Number(b.Version) - Number(a.Version))[0]
+  return versions
+    .filter((version) => version.Version !== '$LATEST')
+    .sort((a, b) => Number(b.Version) - Number(a.Version))[0]
 }
 
 /**
@@ -107,12 +125,14 @@ const getLambdaVersion = async (functionName, region, version= '') => {
 const getCloudFrontDistributionConfig = async (distributionID, region) => {
   const cloudfront = new AWS.CloudFront({
     apiVersion: '2020-05-31',
-    region
+    region,
   })
 
-  return cloudfront.getDistributionConfig({
-    Id: distributionID
-  }).promise()
+  return cloudfront
+    .getDistributionConfig({
+      Id: distributionID,
+    })
+    .promise()
 }
 
 /**
@@ -125,23 +145,27 @@ const getCloudFrontDistributionConfig = async (distributionID, region) => {
  * @returns {*}
  */
 const changeCloudFrontDistributionLambdaARN = (distributionConfig, cacheBehaviorPath, lambdaARN, triggerName) => {
-
   try {
-    const cacheBehavior = cacheBehaviorPath === 'default' ?
-      distributionConfig.DistributionConfig.DefaultCacheBehavior :
-      distributionConfig.DistributionConfig.CacheBehaviors.Items.find(item => item.PathPattern === cacheBehaviorPath)
+    const cacheBehavior =
+      cacheBehaviorPath === 'default'
+        ? distributionConfig.DistributionConfig.DefaultCacheBehavior
+        : distributionConfig.DistributionConfig.CacheBehaviors.Items.find(
+            (item) => item.PathPattern === cacheBehaviorPath,
+          )
 
     if (!cacheBehavior) {
       console.log('No cache behavior found for PathPattern', cacheBehaviorPath)
       return distributionConfig
     }
 
-    const lambdaFunction = cacheBehavior.LambdaFunctionAssociations.Items.find(item => item.EventType === triggerName)
+    const lambdaFunction = cacheBehavior.LambdaFunctionAssociations.Items.find((item) => item.EventType === triggerName)
 
     if (lambdaFunction.LambdaFunctionARN !== lambdaARN) {
       lambdaFunction.LambdaFunctionARN = lambdaARN
     }
-  } catch (e) {}
+  } catch (e) {
+    // do nothing
+  }
 
   return distributionConfig
 }
@@ -157,14 +181,16 @@ const changeCloudFrontDistributionLambdaARN = (distributionConfig, cacheBehavior
 const updateCloudFrontDistribution = async (distributionID, distributionConfig, region) => {
   const cloudfront = new AWS.CloudFront({
     apiVersion: '2020-05-31',
-    region
+    region,
   })
 
-  return cloudfront.updateDistribution({
-    Id: distributionID,
-    IfMatch: distributionConfig.ETag,
-    DistributionConfig: distributionConfig.DistributionConfig
-  }).promise()
+  return cloudfront
+    .updateDistribution({
+      Id: distributionID,
+      IfMatch: distributionConfig.ETag,
+      DistributionConfig: distributionConfig.DistributionConfig,
+    })
+    .promise()
 }
 
 /**
@@ -175,13 +201,15 @@ const updateCloudFrontDistribution = async (distributionID, distributionConfig, 
  * @return {Promise<void>}
  */
 const pushNewCodeBundles = async (config) => {
-  if (!validateConfig(config, ['lambdaCodeS3Bucket'], ['lambdaFunctionName', 'lambdaCodeS3Key', 'lambdaCodeFilePath'])) {
+  if (
+    !validateConfig(config, ['lambdaCodeS3Bucket'], ['lambdaFunctionName', 'lambdaCodeS3Key', 'lambdaCodeFilePath'])
+  ) {
     throw new Error('Invalid config.')
   }
 
   const s3 = new AWS.S3({
     apiVersion: '2006-03-01',
-    region: config.awsRegion
+    region: config.awsRegion,
   })
 
   for (let trigger of config.cfTriggers) {
@@ -198,12 +226,12 @@ const pushNewCodeBundles = async (config) => {
     const s3Config = {
       Bucket: config.lambdaCodeS3Bucket,
       Key: key,
-      Body: fs.createReadStream(trigger.lambdaCodeFilePath)
+      Body: fs.createReadStream(trigger.lambdaCodeFilePath),
     }
 
     console.log('Pushing to S3 with the following config:', {
       ...s3Config,
-      Body: `File: ${trigger.lambdaCodeFilePath}`
+      Body: `File: ${trigger.lambdaCodeFilePath}`,
     })
 
     if (config.dryRun) {
@@ -231,7 +259,7 @@ const deployLambdas = async (config) => {
 
   const lambda = new AWS.Lambda({
     apiVersion: '2015-03-31',
-    region: config.awsRegion
+    region: config.awsRegion,
   })
 
   for (let trigger of config.cfTriggers) {
@@ -248,7 +276,7 @@ const deployLambdas = async (config) => {
     const lambdaConfig = {
       FunctionName: trigger.lambdaFunctionName,
       S3Bucket: config.lambdaCodeS3Bucket,
-      S3Key: key
+      S3Key: key,
     }
 
     console.log('Updating Lambda code with the following config', lambdaConfig)
@@ -277,12 +305,12 @@ const publishLambdas = async (config) => {
 
   const lambda = new AWS.Lambda({
     apiVersion: '2015-03-31',
-    region: config.awsRegion
+    region: config.awsRegion,
   })
 
   for (let trigger of config.cfTriggers) {
     const lambdaConfig = {
-      FunctionName: trigger.lambdaFunctionName
+      FunctionName: trigger.lambdaFunctionName,
     }
 
     console.log('Publishing new Lambda version with the following config:', lambdaConfig)
@@ -314,10 +342,17 @@ const activateLambdas = async (config) => {
   const distroConfig = await getCloudFrontDistributionConfig(config.cfDistributionID, config.awsRegion)
 
   const lambdaARNs = {}
-  await Promise.all(config.cfTriggers
-    .map(async trigger => {
-      lambdaARNs[trigger.cfTriggerName] = (await getLambdaVersion(trigger.lambdaFunctionName, config.awsRegion, config.autoIncrementVersion ? '' : trigger.lambdaFunctionVersion)).FunctionArn
-    }))
+  await Promise.all(
+    config.cfTriggers.map(async (trigger) => {
+      lambdaARNs[trigger.cfTriggerName] = (
+        await getLambdaVersion(
+          trigger.lambdaFunctionName,
+          config.awsRegion,
+          config.autoIncrementVersion ? '' : trigger.lambdaFunctionVersion,
+        )
+      ).FunctionArn
+    }),
+  )
 
   console.log('Activating the following ARNs:', lambdaARNs)
 
@@ -326,7 +361,11 @@ const activateLambdas = async (config) => {
   // then, set the arns in the config (filter out missing arns)
   const updatedConfig = Object.entries(lambdaARNs)
     .filter(([, arn]) => !!arn)
-    .reduce((config, [triggerName, arn]) => changeCloudFrontDistributionLambdaARN(config, cacheBehaviorPath, arn, triggerName), distroConfig)
+    .reduce(
+      (config, [triggerName, arn]) =>
+        changeCloudFrontDistributionLambdaARN(config, cacheBehaviorPath, arn, triggerName),
+      distroConfig,
+    )
 
   // do not update if this is a dry run
   if (config.dryRun) {
@@ -347,4 +386,3 @@ module.exports = {
   activateLambdas,
   validateConfig,
 }
-

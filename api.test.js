@@ -1,7 +1,7 @@
 const fs = require('fs')
 const AWS = require('aws-sdk')
 
-const { validateConfig, pushNewCodeBundles, deployLambdas, publishLambdas, activateLambdas} = require('./index')
+const { validateConfig, pushNewCodeBundles, deployLambdas, publishLambdas, activateLambdas } = require('./index')
 
 jest.mock('fs')
 jest.mock('aws-sdk')
@@ -27,58 +27,58 @@ describe('update lambda edge API', () => {
     cloudFrontUpdateDistributionMock = jest.fn()
 
     AWS.S3 = class S3 {
-      constructor({apiVersion, region}) {
+      constructor({ apiVersion, region }) {
         this.apiVersion = apiVersion
         this.region = region
       }
 
       upload(...args) {
         return {
-          promise: () => s3UploadMock(...args)
+          promise: () => s3UploadMock(...args),
         }
       }
     }
 
     AWS.Lambda = class Lambda {
-      constructor({apiVersion, region}) {
+      constructor({ apiVersion, region }) {
         this.apiVersion = apiVersion
         this.region = region
       }
 
       listVersionsByFunction(...args) {
         return {
-          promise: () => lambdaListVersionsByFunctionMock(...args)
+          promise: () => lambdaListVersionsByFunctionMock(...args),
         }
       }
 
       updateFunctionCode(...args) {
         return {
-          promise: () => lambdaUpdateFunctionCodeMock(...args)
+          promise: () => lambdaUpdateFunctionCodeMock(...args),
         }
       }
 
       publishVersion(...args) {
         return {
-          promise: () => lambdaPublishVersionMock(...args)
+          promise: () => lambdaPublishVersionMock(...args),
         }
       }
     }
 
     AWS.CloudFront = class CloudFront {
-      constructor({apiVersion, region}) {
+      constructor({ apiVersion, region }) {
         this.apiVersion = apiVersion
         this.region = region
       }
 
       getDistributionConfig(...args) {
         return {
-          promise: () => cloudFrontGetDistributionConfigMock(...args)
+          promise: () => cloudFrontGetDistributionConfigMock(...args),
         }
       }
 
       updateDistribution(...args) {
         return {
-          promise: () => cloudFrontUpdateDistributionMock(...args)
+          promise: () => cloudFrontUpdateDistributionMock(...args),
         }
       }
     }
@@ -94,27 +94,27 @@ describe('update lambda edge API', () => {
           cfTriggerName: 'viewer-request',
           lambdaFunctionName: 'viewer-request-fake',
           lambdaCodeS3Key: 'root/fake/path/to/vreq-lambda.zip',
-          lambdaCodeFilePath: '/absolute/path/to/vreq-lambda-local.zip'
+          lambdaCodeFilePath: '/absolute/path/to/vreq-lambda-local.zip',
         },
         {
           cfTriggerName: 'origin-request',
           lambdaFunctionName: 'origin-request-fake',
           lambdaCodeS3Key: 'root/fake/path/to/oreq-lambda.zip',
-          lambdaCodeFilePath: 'relative/path/to/oreq-lambda-local.zip'
+          lambdaCodeFilePath: 'relative/path/to/oreq-lambda-local.zip',
         },
         {
           cfTriggerName: 'origin-response',
           lambdaFunctionName: 'origin-response-fake',
           lambdaCodeS3Key: 'root/fake/path/to/ores-lambda.zip',
-          lambdaCodeFilePath: '/dist/ores-lambda-local.zip'
+          lambdaCodeFilePath: '/dist/ores-lambda-local.zip',
         },
         {
           cfTriggerName: 'viewer-response',
           lambdaFunctionName: 'viewer-response-fake',
           lambdaCodeS3Key: 'root/fake/path/to/vres-lambda.zip',
-          lambdaCodeFilePath: '/dist/vres-lambda-local.zip'
-        }
-      ]
+          lambdaCodeFilePath: '/dist/vres-lambda-local.zip',
+        },
+      ],
     }
   })
 
@@ -122,7 +122,11 @@ describe('update lambda edge API', () => {
     it('should ensure that all required fields are present', () => {
       const validConfig = validateConfig(fakeConfig, ['cfDistributionID', 'lambdaCodeS3Bucket'], ['cfTriggerName'])
       const invalidConfig = validateConfig(fakeConfig, ['awsRegion', 'lambdaCodeS3Bucket'], ['cfTriggerName'])
-      const invalidTrigger = validateConfig(fakeConfig, ['lambdaCodeS3Bucket'], ['cfTriggerName', 'lambdaFunctionVersion'])
+      const invalidTrigger = validateConfig(
+        fakeConfig,
+        ['lambdaCodeS3Bucket'],
+        ['cfTriggerName', 'lambdaFunctionVersion'],
+      )
 
       expect(validConfig).toBe(true)
       expect(invalidConfig).toBe(false)
@@ -151,13 +155,15 @@ describe('update lambda edge API', () => {
   describe('pushNewCodeBundles()', () => {
     beforeEach(() => {
       // just return the path for debugging
-      fs.createReadStream.mockImplementation(path => path)
+      fs.createReadStream.mockImplementation((path) => path)
 
       // return the latest version as "1"
       lambdaListVersionsByFunctionMock.mockImplementation(() => ({
-        Versions: [{
-          Version: '1'
-        }]
+        Versions: [
+          {
+            Version: '1',
+          },
+        ],
       }))
     })
 
@@ -174,13 +180,13 @@ describe('update lambda edge API', () => {
       expect(s3UploadMock).toHaveBeenCalledWith({
         Bucket: 'bucket',
         Key: 'root/fake/path/to/vres-lambda-2.zip',
-        Body: '/dist/vres-lambda-local.zip'
+        Body: '/dist/vres-lambda-local.zip',
       })
     })
 
     it('should use version 1 if auto-increment is true and there are no published versions', async () => {
       lambdaListVersionsByFunctionMock.mockImplementation(() => ({
-        Versions: []
+        Versions: [],
       }))
 
       await pushNewCodeBundles(fakeConfig)
@@ -189,13 +195,13 @@ describe('update lambda edge API', () => {
       expect(s3UploadMock).toHaveBeenCalledWith({
         Bucket: 'bucket',
         Key: 'root/fake/path/to/vres-lambda-1.zip',
-        Body: '/dist/vres-lambda-local.zip'
+        Body: '/dist/vres-lambda-local.zip',
       })
     })
 
     it('should use the provided version', async () => {
       fakeConfig.autoIncrementVersion = false
-      fakeConfig.cfTriggers.forEach(t => t.lambdaFunctionVersion = '5')
+      fakeConfig.cfTriggers.forEach((t) => (t.lambdaFunctionVersion = '5'))
 
       await pushNewCodeBundles(fakeConfig)
 
@@ -203,7 +209,7 @@ describe('update lambda edge API', () => {
       expect(s3UploadMock).toHaveBeenCalledWith({
         Bucket: 'bucket',
         Key: 'root/fake/path/to/vres-lambda-5.zip',
-        Body: '/dist/vres-lambda-local.zip'
+        Body: '/dist/vres-lambda-local.zip',
       })
     })
 
@@ -216,11 +222,11 @@ describe('update lambda edge API', () => {
       expect(s3UploadMock).toHaveBeenCalledWith({
         Bucket: 'bucket',
         Key: 'root/fake/path/to/vres-lambda.zip',
-        Body: '/dist/vres-lambda-local.zip'
+        Body: '/dist/vres-lambda-local.zip',
       })
     })
 
-    it('should not upload when it\'s a dry run', async () => {
+    it("should not upload when it's a dry run", async () => {
       fakeConfig.dryRun = true
 
       await pushNewCodeBundles(fakeConfig)
@@ -233,9 +239,11 @@ describe('update lambda edge API', () => {
     beforeEach(() => {
       // return the latest version as "1"
       lambdaListVersionsByFunctionMock.mockImplementation(() => ({
-        Versions: [{
-          Version: '1'
-        }]
+        Versions: [
+          {
+            Version: '1',
+          },
+        ],
       }))
     })
 
@@ -252,13 +260,13 @@ describe('update lambda edge API', () => {
       expect(lambdaUpdateFunctionCodeMock).toHaveBeenCalledWith({
         FunctionName: 'viewer-response-fake',
         S3Bucket: 'bucket',
-        S3Key: 'root/fake/path/to/vres-lambda-2.zip'
+        S3Key: 'root/fake/path/to/vres-lambda-2.zip',
       })
     })
 
     it('should use the provided version', async () => {
       fakeConfig.autoIncrementVersion = false
-      fakeConfig.cfTriggers.forEach(t => t.lambdaFunctionVersion = '5')
+      fakeConfig.cfTriggers.forEach((t) => (t.lambdaFunctionVersion = '5'))
 
       await deployLambdas(fakeConfig)
 
@@ -266,7 +274,7 @@ describe('update lambda edge API', () => {
       expect(lambdaUpdateFunctionCodeMock).toHaveBeenCalledWith({
         FunctionName: 'viewer-response-fake',
         S3Bucket: 'bucket',
-        S3Key: 'root/fake/path/to/vres-lambda-5.zip'
+        S3Key: 'root/fake/path/to/vres-lambda-5.zip',
       })
     })
 
@@ -279,11 +287,11 @@ describe('update lambda edge API', () => {
       expect(lambdaUpdateFunctionCodeMock).toHaveBeenCalledWith({
         FunctionName: 'viewer-response-fake',
         S3Bucket: 'bucket',
-        S3Key: 'root/fake/path/to/vres-lambda.zip'
+        S3Key: 'root/fake/path/to/vres-lambda.zip',
       })
     })
 
-    it('should not deploy when it\'s a dry run', async () => {
+    it("should not deploy when it's a dry run", async () => {
       fakeConfig.dryRun = true
 
       await deployLambdas(fakeConfig)
@@ -304,11 +312,11 @@ describe('update lambda edge API', () => {
 
       expect(lambdaPublishVersionMock).toHaveBeenCalledTimes(4)
       expect(lambdaPublishVersionMock).toHaveBeenCalledWith({
-        FunctionName: 'viewer-response-fake'
+        FunctionName: 'viewer-response-fake',
       })
     })
 
-    it('should not publish a new version of the lambdas if it\'s a dry run', async () => {
+    it("should not publish a new version of the lambdas if it's a dry run", async () => {
       fakeConfig.dryRun = true
       await publishLambdas(fakeConfig)
 
@@ -327,22 +335,22 @@ describe('update lambda edge API', () => {
               Items: [
                 {
                   EventType: 'viewer-request',
-                  LambdaFunctionARN: 'old-arn'
+                  LambdaFunctionARN: 'old-arn',
                 },
                 {
                   EventType: 'origin-request',
-                  LambdaFunctionARN: 'old-arn'
+                  LambdaFunctionARN: 'old-arn',
                 },
                 {
                   EventType: 'origin-response',
-                  LambdaFunctionARN: 'old-arn'
+                  LambdaFunctionARN: 'old-arn',
                 },
                 {
                   EventType: 'viewer-response',
-                  LambdaFunctionARN: 'old-arn'
-                }
-              ]
-            }
+                  LambdaFunctionARN: 'old-arn',
+                },
+              ],
+            },
           },
           CacheBehaviors: {
             Items: [
@@ -352,24 +360,24 @@ describe('update lambda edge API', () => {
                   Items: [
                     {
                       EventType: 'viewer-request',
-                      LambdaFunctionARN: 'old-arn'
+                      LambdaFunctionARN: 'old-arn',
                     },
                     {
                       EventType: 'origin-request',
-                      LambdaFunctionARN: 'old-arn'
+                      LambdaFunctionARN: 'old-arn',
                     },
                     {
                       EventType: 'origin-response',
-                      LambdaFunctionARN: 'old-arn'
+                      LambdaFunctionARN: 'old-arn',
                     },
                     {
                       EventType: 'viewer-response',
-                      LambdaFunctionARN: 'old-arn'
-                    }
-                  ]
-                }
-              }
-            ]
+                      LambdaFunctionARN: 'old-arn',
+                    },
+                  ],
+                },
+              },
+            ],
           },
         },
       }
@@ -380,17 +388,17 @@ describe('update lambda edge API', () => {
         Versions: [
           {
             Version: '1',
-            FunctionArn: 'arn-v1'
+            FunctionArn: 'arn-v1',
           },
           {
             Version: '2',
-            FunctionArn: 'arn-v2'
+            FunctionArn: 'arn-v2',
           },
           {
             Version: '3',
-            FunctionArn: 'arn-v3'
-          }
-        ]
+            FunctionArn: 'arn-v3',
+          },
+        ],
       }))
     })
 
@@ -413,22 +421,22 @@ describe('update lambda edge API', () => {
               Items: [
                 {
                   EventType: 'viewer-request',
-                  LambdaFunctionARN: 'arn-v3'
+                  LambdaFunctionARN: 'arn-v3',
                 },
                 {
                   EventType: 'origin-request',
-                  LambdaFunctionARN: 'arn-v3'
+                  LambdaFunctionARN: 'arn-v3',
                 },
                 {
                   EventType: 'origin-response',
-                  LambdaFunctionARN: 'arn-v3'
+                  LambdaFunctionARN: 'arn-v3',
                 },
                 {
                   EventType: 'viewer-response',
-                  LambdaFunctionARN: 'arn-v3'
-                }
-              ]
-            }
+                  LambdaFunctionARN: 'arn-v3',
+                },
+              ],
+            },
           },
           CacheBehaviors: {
             Items: [
@@ -438,26 +446,26 @@ describe('update lambda edge API', () => {
                   Items: [
                     {
                       EventType: 'viewer-request',
-                      LambdaFunctionARN: 'old-arn'
+                      LambdaFunctionARN: 'old-arn',
                     },
                     {
                       EventType: 'origin-request',
-                      LambdaFunctionARN: 'old-arn'
+                      LambdaFunctionARN: 'old-arn',
                     },
                     {
                       EventType: 'origin-response',
-                      LambdaFunctionARN: 'old-arn'
+                      LambdaFunctionARN: 'old-arn',
                     },
                     {
                       EventType: 'viewer-response',
-                      LambdaFunctionARN: 'old-arn'
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        }
+                      LambdaFunctionARN: 'old-arn',
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
       })
     })
 
@@ -475,22 +483,22 @@ describe('update lambda edge API', () => {
               Items: [
                 {
                   EventType: 'viewer-request',
-                  LambdaFunctionARN: 'old-arn'
+                  LambdaFunctionARN: 'old-arn',
                 },
                 {
                   EventType: 'origin-request',
-                  LambdaFunctionARN: 'old-arn'
+                  LambdaFunctionARN: 'old-arn',
                 },
                 {
                   EventType: 'origin-response',
-                  LambdaFunctionARN: 'old-arn'
+                  LambdaFunctionARN: 'old-arn',
                 },
                 {
                   EventType: 'viewer-response',
-                  LambdaFunctionARN: 'old-arn'
-                }
-              ]
-            }
+                  LambdaFunctionARN: 'old-arn',
+                },
+              ],
+            },
           },
           CacheBehaviors: {
             Items: [
@@ -500,26 +508,26 @@ describe('update lambda edge API', () => {
                   Items: [
                     {
                       EventType: 'viewer-request',
-                      LambdaFunctionARN: 'arn-v3'
+                      LambdaFunctionARN: 'arn-v3',
                     },
                     {
                       EventType: 'origin-request',
-                      LambdaFunctionARN: 'arn-v3'
+                      LambdaFunctionARN: 'arn-v3',
                     },
                     {
                       EventType: 'origin-response',
-                      LambdaFunctionARN: 'arn-v3'
+                      LambdaFunctionARN: 'arn-v3',
                     },
                     {
                       EventType: 'viewer-response',
-                      LambdaFunctionARN: 'arn-v3'
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        }
+                      LambdaFunctionARN: 'arn-v3',
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
       })
     })
 
@@ -541,22 +549,22 @@ describe('update lambda edge API', () => {
               Items: [
                 {
                   EventType: 'viewer-request',
-                  LambdaFunctionARN: 'arn-v1'
+                  LambdaFunctionARN: 'arn-v1',
                 },
                 {
                   EventType: 'origin-request',
-                  LambdaFunctionARN: 'arn-v2'
+                  LambdaFunctionARN: 'arn-v2',
                 },
                 {
                   EventType: 'origin-response',
-                  LambdaFunctionARN: 'arn-v3'
+                  LambdaFunctionARN: 'arn-v3',
                 },
                 {
                   EventType: 'viewer-response',
-                  LambdaFunctionARN: 'arn-v3'
-                }
-              ]
-            }
+                  LambdaFunctionARN: 'arn-v3',
+                },
+              ],
+            },
           },
           CacheBehaviors: {
             Items: [
@@ -566,26 +574,26 @@ describe('update lambda edge API', () => {
                   Items: [
                     {
                       EventType: 'viewer-request',
-                      LambdaFunctionARN: 'old-arn'
+                      LambdaFunctionARN: 'old-arn',
                     },
                     {
                       EventType: 'origin-request',
-                      LambdaFunctionARN: 'old-arn'
+                      LambdaFunctionARN: 'old-arn',
                     },
                     {
                       EventType: 'origin-response',
-                      LambdaFunctionARN: 'old-arn'
+                      LambdaFunctionARN: 'old-arn',
                     },
                     {
                       EventType: 'viewer-response',
-                      LambdaFunctionARN: 'old-arn'
-                    }
-                  ]
-                }
-              }
-            ]
+                      LambdaFunctionARN: 'old-arn',
+                    },
+                  ],
+                },
+              },
+            ],
           },
-        }
+        },
       })
     })
 
@@ -597,11 +605,11 @@ describe('update lambda edge API', () => {
       expect(cloudFrontUpdateDistributionMock).toHaveBeenCalledWith({
         Id: 'cloudfront',
         IfMatch: 'etag',
-        DistributionConfig: cloudFrontDistributionConfig.DistributionConfig
+        DistributionConfig: cloudFrontDistributionConfig.DistributionConfig,
       })
     })
 
-    it('should not update the distribution config if it\'s a dry run', async () => {
+    it("should not update the distribution config if it's a dry run", async () => {
       fakeConfig.dryRun = true
       await activateLambdas(fakeConfig)
 
