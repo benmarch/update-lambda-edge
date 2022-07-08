@@ -52,6 +52,8 @@ const createConfig = (args) => {
     bucket,
     key,
     region,
+    s3Region,
+    lambdaRegion,
     dryRun,
     cacheBehaviorPath,
   } = definedArgs
@@ -70,6 +72,8 @@ const createConfig = (args) => {
       cacheBehaviorPath: cacheBehaviorPath || projectConfig.cacheBehaviorPath || 'default',
       lambdaCodeS3Bucket: bucket || projectConfig.lambdaCodeS3Bucket,
       awsRegion: region || projectConfig.awsRegion,
+      s3Region: s3Region || projectConfig.s3Region,
+      lambdaRegion: lambdaRegion || projectConfig.lambdaRegion,
       cfTriggers: projectConfig.cfTriggers
         .filter((trigger) => triggerMap[trigger.cfTriggerName])
         .map((trigger) => ({
@@ -86,7 +90,9 @@ const createConfig = (args) => {
       autoIncrementVersion: lambdaVersion ? false : !!autoIncrement,
       cacheBehaviorPath: cacheBehaviorPath || 'default',
       lambdaCodeS3Bucket: bucket,
-      awsRegion: region,
+      awsRegion: region || s3Region || lambdaRegion,
+      s3Region: s3Region,
+      lambdaRegion: lambdaRegion,
       cfTriggers: [
         {
           cfTriggerName: triggerName,
@@ -231,7 +237,15 @@ const cli = yargs(hideBin(process.argv))
   .option('region', {
     alias: 'r',
     type: 'string',
-    description: 'The region that the base Lambdas are deployed to',
+    description: 'The region that the base Lambdas are deployed to and the S3 bucket is stored in',
+  })
+  .option('s3-region', {
+    type: 'string',
+    description: 'The region that the S3 bucket is stored in; ONLY SET IF DIFFERENT FROM LAMBDA REGION!',
+  })
+  .option('lambda-region', {
+    type: 'string',
+    description: 'The region that the base Lambdas are deployed to; ONLY SET IF DIFFERENT FROM S3 REGION!',
   })
   .option('vreq', {
     type: 'boolean',

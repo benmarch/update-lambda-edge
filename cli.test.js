@@ -60,6 +60,8 @@ describe('update-lambda-edge CLI', () => {
           JSON.stringify(
             {
               awsRegion: 'fake',
+              s3Region: 'fake-s3-region',
+              lambdaRegion: 'fake-lambda-region',
               cfDistributionID: 'fake',
               autoIncrementVersion: true,
               lambdaCodeS3Bucket: 'fake',
@@ -103,6 +105,8 @@ describe('update-lambda-edge CLI', () => {
         expect(api.pushNewCodeBundles).toHaveBeenCalledWith({
           dryRun: false,
           awsRegion: 'fake',
+          s3Region: 'fake-s3-region',
+          lambdaRegion: 'fake-lambda-region',
           cfDistributionID: 'fake',
           cacheBehaviorPath: 'default',
           autoIncrementVersion: true,
@@ -161,12 +165,14 @@ describe('update-lambda-edge CLI', () => {
 
       it('should override config options from the command line', () => {
         cli.parse(
-          `push --config ${configFilePath} --region somewhere --distribution-id MYCLOUDFRONT --bucket S3 --lambda-version 5`,
+          `push --config ${configFilePath} --s3-region somewhere --lambda-region somewhere-else --distribution-id MYCLOUDFRONT --bucket S3 --lambda-version 5`,
         )
 
         expect(api.pushNewCodeBundles).toHaveBeenCalledWith({
           dryRun: false,
-          awsRegion: 'somewhere',
+          awsRegion: 'fake',
+          s3Region: 'somewhere',
+          lambdaRegion: 'somewhere-else',
           cfDistributionID: 'MYCLOUDFRONT',
           cacheBehaviorPath: 'default',
           autoIncrementVersion: false,

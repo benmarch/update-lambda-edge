@@ -7,7 +7,10 @@ jest.mock('fs')
 jest.mock('aws-sdk')
 
 describe('update lambda edge API', () => {
+  let s3ConstructorMock
+  let lambdaConstructorMock
   let s3UploadMock
+  let s3GetObjectMock
   let lambdaListVersionsByFunctionMock
   let lambdaUpdateFunctionCodeMock
   let lambdaPublishVersionMock
@@ -19,7 +22,10 @@ describe('update lambda edge API', () => {
     // silence console output
     jest.spyOn(console, 'log').mockImplementation(() => {})
 
+    s3ConstructorMock = jest.fn()
+    lambdaConstructorMock = jest.fn()
     s3UploadMock = jest.fn()
+    s3GetObjectMock = jest.fn()
     lambdaListVersionsByFunctionMock = jest.fn()
     lambdaUpdateFunctionCodeMock = jest.fn()
     lambdaPublishVersionMock = jest.fn()
@@ -30,11 +36,19 @@ describe('update lambda edge API', () => {
       constructor({ apiVersion, region }) {
         this.apiVersion = apiVersion
         this.region = region
+
+        s3ConstructorMock({ apiVersion, region })
       }
 
       upload(...args) {
         return {
           promise: () => s3UploadMock(...args),
+        }
+      }
+
+      getObject(...args) {
+        return {
+          promise: () => s3GetObjectMock(...args),
         }
       }
     }
@@ -43,6 +57,8 @@ describe('update lambda edge API', () => {
       constructor({ apiVersion, region }) {
         this.apiVersion = apiVersion
         this.region = region
+
+        lambdaConstructorMock({ apiVersion, region })
       }
 
       listVersionsByFunction(...args) {
@@ -173,6 +189,40 @@ describe('update lambda edge API', () => {
       return expect(pushNewCodeBundles(fakeConfig)).rejects.toThrow('Invalid config.')
     })
 
+    it('should use the awsRegion', async () => {
+      fakeConfig.awsRegion = 'fake-region'
+
+      await pushNewCodeBundles(fakeConfig)
+
+      expect(s3ConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2006-03-01',
+        region: 'fake-region',
+      })
+
+      expect(lambdaConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2015-03-31',
+        region: 'fake-region',
+      })
+    })
+
+    it('should use s3Region and lambdaRegion', async () => {
+      fakeConfig.awsRegion = 'fake-region'
+      fakeConfig.s3Region = 'fake-s3-region'
+      fakeConfig.lambdaRegion = 'fake-lambda-region'
+
+      await pushNewCodeBundles(fakeConfig)
+
+      expect(s3ConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2006-03-01',
+        region: 'fake-s3-region',
+      })
+
+      expect(lambdaConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2015-03-31',
+        region: 'fake-lambda-region',
+      })
+    })
+
     it('should auto-increment the version', async () => {
       await pushNewCodeBundles(fakeConfig)
 
@@ -253,6 +303,44 @@ describe('update lambda edge API', () => {
       return expect(deployLambdas(fakeConfig)).rejects.toThrow('Invalid config.')
     })
 
+    it('should use the awsRegion', async () => {
+      fakeConfig.awsRegion = 'fake-region'
+
+      await deployLambdas(fakeConfig)
+
+      expect(s3ConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2006-03-01',
+        region: 'fake-region',
+      })
+
+      expect(lambdaConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2015-03-31',
+        region: 'fake-region',
+      })
+    })
+
+    it('should use s3Region and lambdaRegion', async () => {
+      fakeConfig.awsRegion = 'fake-region'
+      fakeConfig.s3Region = 'fake-s3-region'
+      fakeConfig.lambdaRegion = 'fake-lambda-region'
+
+      s3GetObjectMock.mockResolvedValue({
+        Body: 'zip file buffer',
+      })
+
+      await deployLambdas(fakeConfig)
+
+      expect(s3ConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2006-03-01',
+        region: 'fake-s3-region',
+      })
+
+      expect(lambdaConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2015-03-31',
+        region: 'fake-lambda-region',
+      })
+    })
+
     it('should auto-increment the version', async () => {
       await deployLambdas(fakeConfig)
 
@@ -291,6 +379,23 @@ describe('update lambda edge API', () => {
       })
     })
 
+    it('should download from S3 when s3Region and lambdaRegion are set', async () => {
+      fakeConfig.s3Region = 'fake-s3-region'
+      fakeConfig.lambdaRegion = 'fake-lambda-region'
+
+      s3GetObjectMock.mockResolvedValue({
+        Body: 'zip file buffer',
+      })
+
+      await deployLambdas(fakeConfig)
+
+      expect(lambdaUpdateFunctionCodeMock).toHaveBeenCalledTimes(4)
+      expect(lambdaUpdateFunctionCodeMock).toHaveBeenCalledWith({
+        FunctionName: 'viewer-response-fake',
+        ZipFile: 'zip file buffer',
+      })
+    })
+
     it("should not deploy when it's a dry run", async () => {
       fakeConfig.dryRun = true
 
@@ -305,6 +410,29 @@ describe('update lambda edge API', () => {
       fakeConfig.cfTriggers[0].lambdaFunctionName = undefined
 
       return expect(publishLambdas(fakeConfig)).rejects.toThrow('Invalid config.')
+    })
+
+    it('should use the awsRegion', async () => {
+      fakeConfig.awsRegion = 'fake-region'
+
+      await publishLambdas(fakeConfig)
+
+      expect(lambdaConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2015-03-31',
+        region: 'fake-region',
+      })
+    })
+
+    it('should use the lambdaRegion', async () => {
+      fakeConfig.awsRegion = 'fake-region'
+      fakeConfig.lambdaRegion = 'fake-lambda-region'
+
+      await publishLambdas(fakeConfig)
+
+      expect(lambdaConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2015-03-31',
+        region: 'fake-lambda-region',
+      })
     })
 
     it('should publish a new version of the lambdas', async () => {
@@ -406,6 +534,29 @@ describe('update lambda edge API', () => {
       fakeConfig.cfDistributionID = undefined
 
       return expect(activateLambdas(fakeConfig)).rejects.toThrow('Invalid config.')
+    })
+
+    it('should use the awsRegion', async () => {
+      fakeConfig.awsRegion = 'fake-region'
+
+      await activateLambdas(fakeConfig)
+
+      expect(lambdaConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2015-03-31',
+        region: 'fake-region',
+      })
+    })
+
+    it('should use the lambdaRegion', async () => {
+      fakeConfig.awsRegion = 'fake-region'
+      fakeConfig.lambdaRegion = 'fake-lambda-region'
+
+      await activateLambdas(fakeConfig)
+
+      expect(lambdaConstructorMock).toHaveBeenCalledWith({
+        apiVersion: '2015-03-31',
+        region: 'fake-lambda-region',
+      })
     })
 
     it('should update the default cache behavior with the latest ARNs', async () => {
