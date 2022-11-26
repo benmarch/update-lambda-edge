@@ -35,7 +35,7 @@
   },
   "homepage": "https://github.com/benmarch/update-lambda-edge#readme",
   "dependencies": {
-    "aws-sdk": "2.882.0",
+    "aws-sdk": "2.1250.0",
     "yargs": "16.2.0"
   },
   "devDependencies": {
