@@ -1,6 +1,6 @@
 {
   "name": "update-lambda-edge",
-  "version": "1.2.0-rc.0",
+  "version": "1.2.0",
   "description": "Scripts for updating CloudFront distributions with new Lambda@Edge function versions",
   "main": "index.js",
   "bin": "bin/update-lambda-edge",
