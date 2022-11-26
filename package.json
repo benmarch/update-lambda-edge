@@ -1,11 +1,14 @@
 {
   "name": "update-lambda-edge",
-  "version": "1.1.0",
+  "version": "1.2.0-rc.0",
   "description": "Scripts for updating CloudFront distributions with new Lambda@Edge function versions",
   "main": "index.js",
   "bin": "bin/update-lambda-edge",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "prettier": "prettier --write **/*.js *.js bin/update-lambda-edge",
+    "eslint": "eslint --ext .js .",
+    "prepare": "husky install"
   },
   "repository": {
     "type": "git",
@@ -36,7 +39,22 @@
     "yargs": "16.2.0"
   },
   "devDependencies": {
+    "eslint": "8.19.0",
+    "eslint-config-prettier": "8.5.0",
+    "eslint-plugin-jest": "26.5.3",
+    "husky": "8.0.1",
     "jest": "27.5.1",
+    "lint-staged": "13.0.3",
+    "prettier": "2.7.1",
     "temp-write": "4.0.0"
+  },
+  "lint-staged": {
+    "**/*.{js,jsx}": [
+      "npm run prettier",
+      "npm run eslint"
+    ],
+    "packages/**/*.scss": [
+      "npm run sass-lint"
+    ]
   }
 }

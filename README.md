@@ -49,6 +49,10 @@ It is quite verbose, but manageable when it does not need to be executed often a
 The preferred way is to use a configuration file that specifies information about all Lambda@Edge functions for a specific CloudFront distribution.
 Even if there is only one Lambda@Edge function attached to the distribution, the configuration file can simplify the commands considerably.
 
+**Note:** If your S3 bucket used to store the Lambda ZIP files is in a different AWS region than where the base Lambda functions
+are deployed, replace `awsRegion` with `s3Region` and `lambdaRegion`. This might be the case if your company has strict security
+or compliance requirements.
+
 Start with this configuration file template and modify to fit your needs (triggers can be removed if not used):
 ```json
 {
@@ -121,7 +125,9 @@ The following options are global to all commands:
 
 - `--dry-run`: Executes the command but does not make any changes in AWS. Note: it still needs to access AWS for metadata such as Lambda versions and CloudFront configurations. 
 - `--pwd`: Sets the present working directory. All relative paths (for config file and local file path) will resolve from this value. Defaults to `process.cwd()`
-- `--region`: Sets the AWS region. Defaults to `'us-east-1'`
+- `--region`: Sets the AWS region for both S3 and Lambda. Defaults to `'us-east-1'`
+- `--s3-region`: Sets the AWS region for S3. Overrides the `--region` option, requires `--lambda-region` to be set also.
+- `--lambda-region`: Sets the AWS region for Lambda. Overrides the `--region` option, requires `--s3-region` to be set also.
 - `--config`: The path to the configuration file (can be relative to pwd or absolute)
 - `--vreq`: If using a configuration file, executes the command for the Viewer Request trigger (if configured)
 - `--oreq`: If using a configuration file, executes the command for the Origin Request trigger (if configured)
@@ -295,7 +301,7 @@ Then I have a downstream job to run the rest of the Prod commands to activate th
 
 ## Contributing
 
-Feel free to open a pull request.
+Feel free to open an issue with a feature request or a pull request.
 
 ## License
 
